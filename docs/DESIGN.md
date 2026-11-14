@@ -85,8 +85,9 @@ small. Cost: no component library, hand-written SVG charts.
 ## 9. Classifier accuracy
 
 Rules only, no model. Hand-checked on the 100 seeded filings: about 87 tiers right on the first
-pass; after general rule fixes all the errors found were corrected, but the rules were tuned on
-this same sample, so accuracy on new filings is unmeasured.
+pass. General rule fixes corrected the errors found except one left as is (IndiGo's results press
+release is tagged as an update, not results). The rules were tuned on this same sample, so
+accuracy on new filings is unmeasured.
 
 ## 10. Not built yet
 
