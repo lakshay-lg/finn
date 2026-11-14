@@ -38,3 +38,30 @@ def test_price_move_and_configurable_threshold():
 
 def test_not_enough_history():
     assert alerts.evaluate(_hist([1000] * 5)) is None
+
+
+def _co(rows, bank=False):
+    periods = ["Sep 2025", "Dec 2025", "Mar 2026", "Jun 2026", "Sep 2026"]
+    return {"name": "X", "consolidated": True, "top_ratios": {},
+            "tables": {"quarters": {"periods": periods, "rows": rows}, "profit_loss": None,
+                       "balance_sheet": None, "cash_flow": None, "ratios": None}}
+
+
+def test_headline_qoq_yoy():
+    from finn import metrics
+    h = metrics.headline(_co({"Sales": [100, 0, 0, 200, 220], "Operating Profit": [10, 0, 0, 20, 33],
+                              "OPM %": [10, 0, 0, 10, 15], "Profit before tax": [8, 0, 0, 16, 20], "Net Profit": [6, 0, 0, 12, 9]}))
+    rev = h["lines"][0]
+    assert (rev["qoq_pct"], rev["yoy_pct"]) == (10.0, 120.0)
+    assert [l["label"] for l in h["lines"]] == ["Revenue", "EBITDA", "PBT", "PAT"]
+    assert h["lines"][3]["qoq_pct"] == -25.0
+
+
+def test_bank_headline_uses_net_interest_income():
+    from finn import metrics
+    h = metrics.headline(_co({"Revenue": [90, 0, 0, 95, 100], "Interest": [50, 0, 0, 52, 54],
+                              "Financing Profit": [-5, 0, 0, -6, -7], "Financing Margin %": [-5, 0, 0, -6, -7],
+                              "Profit before tax": [20, 0, 0, 22, 23], "Net Profit": [15, 0, 0, 16, 17]}))
+    nii = h["lines"][1]
+    assert nii["label"] == "Net interest income" and nii["value"] == 46 and nii["prev"] == 43
+    assert h["margin_pct"] is None
