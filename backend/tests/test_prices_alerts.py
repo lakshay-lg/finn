@@ -65,3 +65,20 @@ def test_bank_headline_uses_net_interest_income():
     nii = h["lines"][1]
     assert nii["label"] == "Net interest income" and nii["value"] == 46 and nii["prev"] == 43
     assert h["margin_pct"] is None
+
+
+def test_classifier_rules():
+    from finn.announcements import classify as c
+    assert c("Regulation 30 Capacity Addition", "Board approves 11,871 crore investment in 1,800 MW")["category"] == "capex"
+    assert c("Intimation of Repayment of Commercial Paper (CP)", "fully redeemed 1,000 crore")["tier"] == "routine"
+    assert c("Announcement under Regulation 30 (LODR)-Allotment of ESOP / ESPS", "")["tier"] == "routine"
+    assert c("Announcement under Regulation 30 (LODR)-Analyst / Investor Meet - Intimation", "filed Q2 FY27 earnings-call transcript")["category"] == "earnings_call"
+    assert c("Announcement under Regulation 30 (LODR)-Change in Management", "X appointed CEO")["tier"] == "high"
+    assert c("Announcement under Regulation 30 (LODR)-Credit Rating", "S&P reaffirmed A- stable rating")["tier"] == "routine"
+    assert c("Disclosure Under Regulation 30", "DoT levied penalties of Rs.1.60 lakh")["tier"] == "routine"
+
+
+def test_board_outcome_is_results_only_when_it_says_results():
+    from finn.announcements import classify as c
+    assert c("Board Meeting Outcome for Outcome Of The Meeting Of Special Committee", "Approved issue of 5.74 crore warrants to parent")["category"] == "fund_raise"
+    assert c("Board Meeting Outcome for Outcome Of The Board Meeting", "Approved Q2 and H1 results, JV with X")["category"] == "results"
