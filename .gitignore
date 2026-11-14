@@ -1,0 +1,25 @@
+# secrets & local state
+.env
+.env.*
+!.env.example
+
+# caches / downloads
+data/cache/
+data/*.db-wal
+data/*.db-shm
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+frontend/dist/
+
+# misc
+.DS_Store
+*.log
+data/finn.db
