@@ -79,6 +79,7 @@ def brief(hours: int = 24):
         "medium": [r for r in rows if r["tier"] == "medium"],
         "routine": [r for r in rows if r["tier"] == "routine"],
         "moves": moves, "price_session": latest,
+        "moves_in_window": bool(latest and latest >= since[:10]),
         "last_high": dict(last_high) if last_high else None,
         "coverage": announcements.coverage(con),
     }

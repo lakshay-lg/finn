@@ -63,3 +63,33 @@ states its coverage instead of implying completeness.
 
 Numbers are computed deterministically; models are used for language only, routed cheap → strong,
 cached by content hash. Groq key only for now; OpenAI unused until a spend cap is set.
+
+## 7. Frontend: no build step
+
+Plain HTML, CSS and ES modules in `web/`, served by the API. Three destinations: Brief, Research,
+Thresholds. Chosen over React + Vite because nothing has to compile before a deploy and the UI is
+small. Cost: no component library, hand-written SVG charts.
+
+## 8. Things the UI is deliberately honest about
+
+- **Results numbers:** a results card shows figures only when screener carries the quarter the
+  filing reports (found when KAYNES' Sep-quarter filing was about to show Jun-quarter numbers).
+  Otherwise it says the numbers are pending. They are labelled as screener's standardised table,
+  not parsed from the filing; parsing the filing itself is not built.
+- **Summaries:** the one-line text under each filing is screener's, and is labelled so. The
+  exchange's own title leads.
+- **Price moves outside the window** are listed separately and not counted in the opening sentence.
+- **Coverage** is stated on the Brief screen as partial.
+- **Banks:** net interest income replaces EBITDA; leverage and cash conversion are not shown.
+
+## 9. Classifier accuracy
+
+Rules only, no model. Hand-checked on the 100 seeded filings: about 87 tiers right on the first
+pass; after general rule fixes all the errors found were corrected, but the rules were tuned on
+this same sample, so accuracy on new filings is unmeasured.
+
+## 10. Not built yet
+
+Promise ledger, guidance, bull vs bear, business snapshot (all need the model layer); results
+parsed from the filing PDF; management-change background; RSS poller for live announcements
+(its item format could not be observed on a weekend); push notifications; deployment.
