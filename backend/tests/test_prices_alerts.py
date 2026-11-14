@@ -82,3 +82,12 @@ def test_board_outcome_is_results_only_when_it_says_results():
     from finn.announcements import classify as c
     assert c("Board Meeting Outcome for Outcome Of The Meeting Of Special Committee", "Approved issue of 5.74 crore warrants to parent")["category"] == "fund_raise"
     assert c("Board Meeting Outcome for Outcome Of The Board Meeting", "Approved Q2 and H1 results, JV with X")["category"] == "results"
+
+
+def test_reported_quarter():
+    from finn.main import reported_quarter as q
+    assert q("2026-11-14T23:54:00+05:30") == "Sep 2026"
+    assert q("2026-10-01T09:00:00+05:30") == "Sep 2026"
+    assert q("2026-09-30T09:00:00+05:30") == "Jun 2026"
+    assert q("2027-01-20T09:00:00+05:30") == "Dec 2026"
+    assert q("2026-02-10T09:00:00+05:30") == "Dec 2025"
