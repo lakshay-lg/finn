@@ -165,6 +165,8 @@ def _allow_fetch(limit: int = 12, window: float = 600.0) -> bool:
 @app.middleware("http")
 async def security_headers(request, call_next):
     resp = await call_next(request)
+    # page files are small; make browsers check for a newer copy every time (ETag keeps it cheap)
+    resp.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["X-Frame-Options"] = "DENY"
@@ -215,5 +217,13 @@ def status():
 
 
 _web = config.ROOT / "web"
+
+
+@app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], include_in_schema=False)
+def api_not_found(rest: str):
+    """Unknown API paths answer in JSON. Unknown pages are served web/404.html by the static mount."""
+    raise HTTPException(404, "Not Found")
+
+
 if _web.exists():
     app.mount("/", StaticFiles(directory=_web, html=True), name="web")

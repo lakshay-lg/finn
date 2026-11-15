@@ -128,3 +128,12 @@ secrets, parameterised SQL, HTML escaping and error responses passed. Fixed afte
 
 Not done: per-visitor rate limiting (the cap is global), and nothing limits model spend because
 the hosted app makes no model calls.
+
+## 12. Launch checklist pass (20-item site checklist)
+
+Twelve items apply. Passed as built: no horizontal overflow at 360px, sampled links resolve
+(8 of 8; not all 102 were tested), bottom-tab navigation, favicon, working controls, no
+placeholder text. Fixed: per-screen page titles, a meta description, a custom not-found page
+(unknown API paths still answer in JSON), a message when a search matches nothing, and 44px
+tap targets on filing and document links. Found along the way: browsers kept stale page files
+after an update, so page files are now sent with `Cache-Control: no-cache`.

@@ -176,3 +176,16 @@ def test_api_rejects_out_of_range_inputs_and_sets_headers(monkeypatch):
     assert c.get("/api/alerts?on_date=x';--").status_code == 422
     r = c.get("/api/status")
     assert r.status_code == 200 and r.headers["x-content-type-options"] == "nosniff" and "default-src 'self'" in r.headers["content-security-policy"]
+
+
+def test_unknown_page_gets_html_and_unknown_api_gets_json():
+    import os
+    os.environ["FINN_REFRESH"] = "0"
+    from fastapi.testclient import TestClient
+    from finn import main
+    c = TestClient(main.app)
+    r = c.get("/some/missing/page")
+    assert r.status_code == 404 and "text/html" in r.headers["content-type"] and "does not exist" in r.text
+    r = c.get("/api/nope")
+    assert r.status_code == 404 and r.json() == {"detail": "Not Found"}
+    assert c.get("/api/research/NOTAREALTICKER").status_code == 404

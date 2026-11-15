@@ -123,6 +123,7 @@ async function company(sym) {
   const cashLine = c.bank ? esc(c.note) : c.cfo_to_pat_3y_pct == null ? "Not enough cash-flow history to judge."
     : `Over the last three years, operating cash flow was ${c.cfo_to_pat_3y_pct}% of reported profit${c.cfo_to_pat_3y_pct < 70 ? ". Profits are not turning into cash." : c.cfo_to_pat_3y_pct > 100 ? ". Cash runs ahead of profit." : "."}`;
   const ccc = b.cash_conversion_cycle || [];
+  document.title = `${r.name} | FINN`;
   box.innerHTML = `
     <h1 class="co">${esc(r.name)}</h1>
     <p class="muted small">${esc(r.symbol)}, market cap Rs ${inr(r.top_ratios["Market Cap"])} crore, P/E ${r.top_ratios["Stock P/E"] ?? "n/a"}, ROCE ${r.top_ratios["ROCE"] ?? "n/a"}%</p>
@@ -148,6 +149,7 @@ async function research() {
   let timer;
   const show = async text => {
     let list; try { list = await get(`/api/symbols?q=${encodeURIComponent(text)}`); } catch { list = []; }
+    if (!list.length && text.trim()) { hits.innerHTML = `<li class="muted nohit">No NSE company matches "${esc(text.trim())}". Try the exchange symbol, for example TCS.</li>`; return; }
     hits.innerHTML = list.map(s => `<li><button data-s="${esc(s.symbol)}"><strong>${esc(s.symbol)}</strong> <span class="muted">${esc(s.name)}</span></button></li>`).join("");
     hits.querySelectorAll("button").forEach(b => b.onclick = () => { hits.innerHTML = ""; q.value = b.dataset.s; company(b.dataset.s); });
   };
@@ -179,6 +181,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   state.tab = b.dataset.tab;
   document.querySelectorAll(".tabs button").forEach(x => x.toggleAttribute("aria-current", false));
   b.setAttribute("aria-current", "page");
+  document.title = `${b.textContent} | FINN`;
   window.scrollTo(0, 0); TABS[state.tab]();
 });
 brief();
