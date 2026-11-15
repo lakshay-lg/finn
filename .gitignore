@@ -27,3 +27,6 @@ data/finn.db
 
 # exported chat transcripts hold private details
 *local-command-caveat*.txt
+
+# personal submission drafts (email text, exported chat history)
+submission/
