@@ -242,3 +242,17 @@ def test_symbols_all_endpoint():
     from finn import main
     d = TestClient(main.app).get("/api/symbols/all").json()
     assert len(d["portfolio"]) == 20 and len(d["symbols"]) > 2000 and ["INFY", "Infosys Limited"] in d["symbols"]
+
+
+def test_installable_app_files_are_served():
+    import os
+    os.environ["FINN_REFRESH"] = "0"
+    from fastapi.testclient import TestClient
+    from finn import main
+    c = TestClient(main.app)
+    m = c.get("/manifest.json")
+    assert m.status_code == 200 and m.json()["display"] == "standalone"
+    assert {i["sizes"] for i in m.json()["icons"]} == {"192x192", "512x512"}
+    for path in ("/sw.js", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"):
+        assert c.get(path).status_code == 200, path
+    assert 'rel="manifest"' in c.get("/").text

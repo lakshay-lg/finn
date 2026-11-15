@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- full-bleed so Android's mask (circle, squircle) never shows a border; the mark sits inside the
+       central 80% safe zone required for maskable icons -->
+  <rect width="512" height="512" fill="#14213D"/>
+  <rect x="196" y="140" width="36" height="232" rx="6" fill="#E0A100"/>
+  <rect x="252" y="140" width="72" height="34" rx="6" fill="#E9EDF5"/>
+  <rect x="252" y="236" width="56" height="34" rx="6" fill="#E9EDF5"/>
+</svg>

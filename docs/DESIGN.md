@@ -185,3 +185,12 @@ FINN says, a grotesk for data). What changed is how the screens work together:
 Found while checking: the security policy blocks inline `style` attributes, which the first
 version of the volume bars used; they are SVG now. Digit spacing: this typeface's tabular
 figures widen commas and points, so numbers use proportional figures.
+
+## 15. Installable on a phone
+
+A web app manifest, icons and a small service worker make FINN installable from Chrome on Android
+("Install app") and addable to the iPhone home screen; it then opens full screen with its own icon.
+Chrome's installability check reports no errors. The worker is network-first, so a redeploy is
+picked up on the next open, and it caches only the app shell: with no signal FINN opens and says
+it needs a connection, instead of a browser error page. No data is cached and there are no push
+notifications; real alerts on the lock screen would need a push service and are left for later.

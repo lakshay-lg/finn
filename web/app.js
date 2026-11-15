@@ -50,7 +50,10 @@ async function get(url) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `Request failed (${r.status})`);
   return r.json();
 }
-const fail = e => `<p class="error">${esc(e.message)}. Check your connection, then reload.</p>`;
+/* A failed fetch (no signal) is a TypeError; anything else is the server's own message. */
+const fail = e => e instanceof TypeError
+  ? `<p class="error">No connection. FINN needs the internet to read the latest filings; reload when you are back online.</p>`
+  : `<p class="error">${esc(e.message)}. Reload to try again.</p>`;
 /* One entrance, on the first screen drawn after the page opens; never again on tab or window changes. */
 function entered() { if (state.entered) return ["", ""]; state.entered = true; return [" enter", " enter-2"]; }
 function stampHeader() {
@@ -337,5 +340,7 @@ view.addEventListener("click", e => {
   go("research");
 });
 brief();
+/* Installable on a phone's home screen; the worker keeps the app shell for when there is no signal. */
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 /* Fetch the company list once the brief has drawn, so the Research tab opens instantly. */
 load().then(() => setTimeout(() => { if (!store.symbols) get("/api/symbols/all").then(d => { store.symbols ??= d; }).catch(() => {}); }, 300)).catch(() => {});

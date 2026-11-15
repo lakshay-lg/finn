@@ -6,6 +6,8 @@ researches any NSE company from its own reports and earnings calls.
 
 **Try it on a phone:** https://finn-buy3.onrender.com
 (free hosting: if nobody has opened it for a while, the first load can take up to a minute)
+On Android, Chrome offers "Install app" (or menu, then "Add to Home screen"); on iPhone, Safari's
+Share, then "Add to Home Screen". It then opens full screen like an app.
 
 Built for the ENAM Holdings AI Engineer build challenge, November 2026.
 
