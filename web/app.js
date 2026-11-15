@@ -276,7 +276,7 @@ async function research() {
     hint.textContent = text.trim() ? "" : "Your holdings. Promise ledgers are ready for INFY and KAYNES; any other company shows its numbers and documents.";
     if (!list.length) { hits.innerHTML = `<li class="muted nohit">No NSE company matches "${esc(text.trim())}". Try the exchange symbol, for example TCS.</li>`; return; }
     hits.innerHTML = list.map(([s, n]) => `<li><button data-s="${esc(s)}"><strong>${esc(s)}</strong> <span class="muted">${esc(n)}</span>${moves[s] != null ? `<span class="m ${moves[s] >= 0 ? "up" : "down"}">${signed(moves[s], 1)}</span>` : ""}</button></li>`).join("");
-    hits.querySelectorAll("button").forEach(b => b.onclick = () => { hits.innerHTML = ""; hint.textContent = ""; q.value = b.dataset.s; company(b.dataset.s); });
+    hits.querySelectorAll("button").forEach(b => b.onclick = () => navigate("research", b.dataset.s));
   };
   q.oninput = () => show(q.value);
   if (state.company) { q.value = state.company; company(state.company); } else show("");
@@ -322,24 +322,62 @@ async function thresholds() {
   run();
 }
 
-/* ---------------- Navigation ---------------- */
+/* ---------------- Navigation ----------------
+   Every screen opened (a tab, or a company in Research) is a history entry, so the phone's back
+   gesture returns to the previous screen instead of leaving the app. Below the first screen sits a
+   guard entry: reaching it asks "Close FINN?"; a second back gesture, or "Close", leaves. The screen
+   is also in the address (#research/KAYNES), so a reload reopens it. */
 const TABS = { brief, research, thresholds };
-function go(tab) {
+const hashOf = (tab, co) => `#${tab}${tab === "research" && co ? "/" + encodeURIComponent(co) : ""}`;
+function route() {
+  const [t, c] = location.hash.slice(1).split("/");
+  return { tab: TABS[t] ? t : "brief", company: t === "research" && c ? decodeURIComponent(c).toUpperCase() : null };
+}
+function show(tab, co) {
+  if (tab === "research") state.company = co ?? null;
   state.tab = tab;
   state.ticket++;
   document.querySelectorAll(".tabs button").forEach(x => { if (x.dataset.tab === tab) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); });
   document.title = `${tab[0].toUpperCase() + tab.slice(1)} | FINN`;
   window.scrollTo(0, 0); TABS[tab]();
 }
-document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => go(b.dataset.tab));
+/* A user's own move: a new entry, unless it is the screen already showing. */
+function navigate(tab, co = state.company) {
+  const company = tab === "research" ? co : null;
+  if (tab === state.tab && (tab !== "research" || company === state.company)) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  history.pushState({ tab, company }, "", hashOf(tab, company));
+  show(tab, company);
+}
+
+const sheet = document.getElementById("exit");
+function askToClose() { sheet.hidden = false; document.getElementById("exit-stay").focus(); }
+function stay() {
+  sheet.hidden = true;
+  history.pushState({ tab: state.tab, company: state.company }, "", hashOf(state.tab, state.company));
+}
+document.getElementById("exit-stay").onclick = stay;
+document.getElementById("exit-close").onclick = () => { sheet.hidden = true; history.back(); };
+sheet.addEventListener("click", e => { if (e.target === sheet) stay(); });
+sheet.addEventListener("keydown", e => { if (e.key === "Escape") stay(); });
+
+addEventListener("popstate", e => {
+  const st = e.state;
+  if (!st || st.root) { askToClose(); return; }
+  sheet.hidden = true;
+  show(st.tab, st.company);
+});
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => navigate(b.dataset.tab));
 /* Any company named anywhere opens its research: from an alert to the analysis in one tap. */
 view.addEventListener("click", e => {
   const t = e.target.closest("[data-open]");
-  if (!t) return;
-  state.company = t.dataset.open;
-  go("research");
+  if (t) navigate("research", t.dataset.open);
 });
-brief();
+
+const first = route();
+history.replaceState({ root: true }, "", location.pathname + location.search);
+history.pushState(first, "", hashOf(first.tab, first.company));
+show(first.tab, first.company);
 /* Installable on a phone's home screen; the worker keeps the app shell for when there is no signal. */
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 /* Fetch the company list once the brief has drawn, so the Research tab opens instantly. */

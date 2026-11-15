@@ -179,3 +179,13 @@ svg.vbar .bg { fill: var(--sunk); } svg.vbar .fg { fill: var(--ink-2); } svg.vba
    content width, so a desktop scrollbar counts. Narrower phones get three to a row at a larger size. */
 main { container-type: inline-size; }
 @container (max-width: 344px) { .pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tile .s { font-size: 11px; letter-spacing: -.01em; } }
+
+/* "Close FINN?" sheet, shown when back is pressed on the first screen */
+.sheet { position: fixed; inset: 0; z-index: 5; background: rgba(14, 22, 38, .45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet[hidden] { display: none; }
+.sheet-card { width: 100%; max-width: 34rem; background: var(--surface); border-radius: 16px 16px 0 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); }
+.sheet-title { font: 500 22px/1.2 var(--serif); margin: 0 0 4px; }
+.sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
+.btn { flex: 1; min-height: 48px; border-radius: 12px; border: 0; background: var(--sunk); font-weight: 600; }
+.btn.primary { background: var(--ink); color: var(--paper); }
+@media (prefers-reduced-motion: no-preference) { .sheet:not([hidden]) .sheet-card { animation: rise .2s cubic-bezier(.2,.7,.2,1); } }

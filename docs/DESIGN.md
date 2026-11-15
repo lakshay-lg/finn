@@ -194,3 +194,12 @@ Chrome's installability check reports no errors. The worker is network-first, so
 picked up on the next open, and it caches only the app shell: with no signal FINN opens and says
 it needs a connection, instead of a browser error page. No data is cached and there are no push
 notifications; real alerts on the lock screen would need a push service and are left for later.
+
+## 16. Back gesture
+
+Found when installed on Android: the back gesture minimised FINN from any screen, because tab and
+company changes were not history entries. Now every screen opened is one (and is in the address,
+`#research/KAYNES`, so a reload reopens it); back returns to the previous screen. Below the first
+screen sits a guard entry: reaching it opens a "Close FINN?" sheet (Stay focused by default); a
+second back gesture or "Close FINN" leaves. Time-window changes on the Brief are not history
+entries, on purpose: back should move between screens, not undo filter taps.

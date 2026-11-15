@@ -32,6 +32,13 @@
   <button data-tab="thresholds">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg><span>Thresholds</span></button>
 </nav>
+<div class="sheet" id="exit" role="alertdialog" aria-modal="true" aria-labelledby="exit-title" aria-describedby="exit-note" hidden>
+  <div class="sheet-card">
+    <p class="sheet-title" id="exit-title">Close FINN?</p>
+    <p class="small muted" id="exit-note">You are on the first screen. Swipe back again to close.</p>
+    <div class="sheet-actions"><button id="exit-stay" class="btn">Stay</button><button id="exit-close" class="btn primary">Close FINN</button></div>
+  </div>
+</div>
 <script type="module" src="app.js"></script>
 </body>
 </html>
