@@ -167,3 +167,21 @@ filters windows, searches and applies thresholds itself (2-5 ms, no requests). T
 unrounded alert figures so the phone's decision matches the server's exactly (tested). Data is
 refetched after 10 minutes. Responses are gzip-compressed. Also fixed: the Brief ignored the
 thresholds set on the Thresholds screen; both now use the same settings, saved on the device.
+
+## 14. Redesign: connect push to pull
+
+The visual base stayed (navy ink, amber reserved for "needs your attention", a serif for what
+FINN says, a grotesk for data). What changed is how the screens work together:
+
+- **Any company named anywhere opens its research.** From an alert or a filing to the
+  analysis in one tap; before, the Brief and Research were separate.
+- **Portfolio pulse:** all 20 holdings' last-session moves in one grid under the opening
+  sentence, outlined when they cross the investor's thresholds.
+- **Filings on a time rail** (date and time in a left column) instead of identical cards.
+- **Research leads with the promise ledger** when one exists, and shows a price line.
+- **Thresholds draw each stock's volume against the threshold**, so "unusual" is visible.
+- Press feedback on everything tappable, one entrance on first load, placeholders while loading.
+
+Found while checking: the security policy blocks inline `style` attributes, which the first
+version of the volume bars used; they are SVG now. Digit spacing: this typeface's tabular
+figures widen commas and points, so numbers use proportional figures.
