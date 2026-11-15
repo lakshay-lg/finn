@@ -17,6 +17,22 @@ PROVIDERS = {
     "groq": ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", "openai/gpt-oss-120b"),
     "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-2.5-flash"),
 }
+def _env(name: str) -> str | None:
+    """A setting from the environment, else from the project's git-ignored .env file."""
+    if os.environ.get(name):
+        return os.environ[name]
+    env = config.ROOT / ".env"
+    if env.exists():
+        for line in env.read_text().splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() == name and v.strip():
+                return v.strip().strip("'\"")
+    return None
+
+
+# Any other OpenAI-compatible service: FINN_PROVIDER=custom with FINN_BASE_URL and FINN_API_KEY.
+_base = (_env("FINN_BASE_URL") or "").rstrip("/")
+PROVIDERS["custom"] = (f"{_base}/chat/completions", "FINN_API_KEY", "")
 PROVIDER = os.environ.get("FINN_PROVIDER", "groq")
 URL, KEY_NAME, _DEFAULT = PROVIDERS[PROVIDER]
 # Groq: 200,000 tokens per day per model on the free tier; FINN_MODEL switches model when one runs out
@@ -24,16 +40,10 @@ STRONG = os.environ.get("FINN_MODEL", _DEFAULT)
 
 
 def _key() -> str | None:
-    """The key from the environment, else from the project's git-ignored .env file. Never printed."""
-    if os.environ.get(KEY_NAME):
-        return os.environ[KEY_NAME]
-    env = config.ROOT / ".env"
-    if env.exists():
-        for line in env.read_text().splitlines():
-            k, _, v = line.partition("=")
-            if k.strip() == KEY_NAME and v.strip():
-                return v.strip().strip("'\"")
-    return None
+    """The provider's key, from the environment or .env. Never printed."""
+    return _env(KEY_NAME)
+
+
 CACHE = config.CACHE_DIR / "llm"
 LEDGER = config.CACHE_DIR / "llm_ledger.jsonl"
 
