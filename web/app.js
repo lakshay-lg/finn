@@ -324,9 +324,11 @@ async function thresholds() {
 
 /* ---------------- Navigation ----------------
    Every screen opened (a tab, or a company in Research) is a history entry, so the phone's back
-   gesture returns to the previous screen instead of leaving the app. Below the first screen sits a
-   guard entry: reaching it asks "Close FINN?"; a second back gesture, or "Close", leaves. The screen
-   is also in the address (#research/KAYNES), so a reload reopens it. */
+   gesture returns to the previous screen instead of leaving the app; the screen is also in the
+   address (#research/KAYNES), so a reload reopens it.
+   On the first screen, back is caught with a CloseWatcher (Chrome on Android), not a fake history
+   entry: nothing navigates, so nothing slides. The first back opens "Close FINN?"; a second back
+   closes the app, because nothing is left to catch it. */
 const TABS = { brief, research, thresholds };
 const hashOf = (tab, co) => `#${tab}${tab === "research" && co ? "/" + encodeURIComponent(co) : ""}`;
 function route() {
@@ -345,26 +347,39 @@ function show(tab, co) {
 function navigate(tab, co = state.company) {
   const company = tab === "research" ? co : null;
   if (tab === state.tab && (tab !== "research" || company === state.company)) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  disarm();
   history.pushState({ tab, company }, "", hashOf(tab, company));
   show(tab, company);
 }
 
-const sheet = document.getElementById("exit");
-function askToClose() { sheet.hidden = false; document.getElementById("exit-stay").focus(); }
-function stay() {
-  sheet.hidden = true;
-  history.pushState({ tab: state.tab, company: state.company }, "", hashOf(state.tab, state.company));
+const sheet = document.getElementById("exit"), note = document.getElementById("exit-note"), closeBtn = document.getElementById("exit-close");
+let watcher = null;
+function arm() {
+  if (watcher || !("CloseWatcher" in window) || !history.state?.first) return;
+  try { watcher = new CloseWatcher(); watcher.onclose = () => { watcher = null; openSheet(); }; } catch { watcher = null; }
 }
+function disarm() { if (watcher) { watcher.destroy(); watcher = null; } }
+function openSheet() {
+  note.textContent = "You are on the first screen. Swipe back again to close.";
+  closeBtn.hidden = false;
+  sheet.hidden = false;
+  document.getElementById("exit-stay").focus();
+}
+function stay() { sheet.hidden = true; arm(); }
 document.getElementById("exit-stay").onclick = stay;
-document.getElementById("exit-close").onclick = () => { sheet.hidden = true; history.back(); };
+closeBtn.onclick = () => {
+  window.close();
+  // Android may not let a web app close itself; say what will work instead of failing silently.
+  setTimeout(() => { if (!document.hidden) { note.textContent = "Swipe back once more to close FINN."; closeBtn.hidden = true; document.getElementById("exit-stay").focus(); } }, 300);
+};
 sheet.addEventListener("click", e => { if (e.target === sheet) stay(); });
-sheet.addEventListener("keydown", e => { if (e.key === "Escape") stay(); });
+sheet.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); stay(); } });
 
 addEventListener("popstate", e => {
-  const st = e.state;
-  if (!st || st.root) { askToClose(); return; }
+  const st = e.state || route();
   sheet.hidden = true;
   show(st.tab, st.company);
+  if (st.first) arm(); else disarm();
 });
 
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => navigate(b.dataset.tab));
@@ -375,9 +390,9 @@ view.addEventListener("click", e => {
 });
 
 const first = route();
-history.replaceState({ root: true }, "", location.pathname + location.search);
-history.pushState(first, "", hashOf(first.tab, first.company));
+history.replaceState({ ...first, first: true }, "", hashOf(first.tab, first.company));
 show(first.tab, first.company);
+arm();
 /* Installable on a phone's home screen; the worker keeps the app shell for when there is no signal. */
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 /* Fetch the company list once the brief has drawn, so the Research tab opens instantly. */

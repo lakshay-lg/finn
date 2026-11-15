@@ -199,7 +199,13 @@ notifications; real alerts on the lock screen would need a push service and are 
 
 Found when installed on Android: the back gesture minimised FINN from any screen, because tab and
 company changes were not history entries. Now every screen opened is one (and is in the address,
-`#research/KAYNES`, so a reload reopens it); back returns to the previous screen. Below the first
-screen sits a guard entry: reaching it opens a "Close FINN?" sheet (Stay focused by default); a
-second back gesture or "Close FINN" leaves. Time-window changes on the Brief are not history
-entries, on purpose: back should move between screens, not undo filter taps.
+`#research/KAYNES`, so a reload reopens it); back returns to the previous screen. Time-window
+changes on the Brief are not entries: back moves between screens, it does not undo filter taps.
+
+On the first screen, back opens a "Close FINN?" sheet. First version: a hidden guard entry under
+the first screen. Tested on the phone, it failed twice: "Close FINN" had nothing to go back to in
+an installed app, and the swipe played Android's page-slide animation although nothing changed.
+Now: a CloseWatcher catches back on the first screen without navigating (no slide); the second back
+closes the app because nothing is left to catch it. "Close FINN" tries `window.close()`; browsers
+only let scripts close windows they opened, so when refused the sheet says "Swipe back once more to
+close FINN" instead of failing silently. Browsers without CloseWatcher simply close on back.
