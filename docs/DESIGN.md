@@ -61,8 +61,15 @@ states its coverage instead of implying completeness.
 
 ## 6. LLM use
 
-Numbers are computed deterministically; models are used for language only, routed cheap → strong,
-cached by content hash. Groq key only for now; OpenAI unused until a spend cap is set.
+Numbers are computed deterministically; a model is used for one job only: pulling guidance
+statements out of earnings-call transcripts (section 9a). Everything else, including the filing
+classifier, is rules. Model replies are cached by a hash of model and prompt, so each transcript
+chunk is read once.
+
+The model runs offline, on the developer's machine, and its output ships with the app as data.
+The hosted app makes no model calls. Total spend: $0, on Groq's free tier (about 190,000 tokens
+recorded across both models, plus failed calls that were not). The OpenAI key on the machine was
+never used.
 
 ## 7. Frontend: no build step
 
@@ -120,9 +127,10 @@ accuracy on new filings is unmeasured.
 
 ## 10. Not built yet
 
-Bull vs bear, business snapshot; ledgers for companies other than Infosys; results
-parsed from the filing PDF; management-change background; RSS poller for live announcements
-(its item format could not be observed on a weekend); push notifications; deployment.
+Bull vs bear and business snapshot; ledgers beyond Infosys and Kaynes, and building a ledger on
+demand in the hosted app; results parsed from the filing PDF; management-change background;
+an RSS poller for live announcements (its item format could not be observed on a weekend);
+push notifications; an editable portfolio.
 
 ## 11. Security review (against a 25-item app checklist)
 
