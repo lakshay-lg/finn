@@ -209,3 +209,12 @@ Now: a CloseWatcher catches back on the first screen without navigating (no slid
 closes the app because nothing is left to catch it. "Close FINN" tries `window.close()`; browsers
 only let scripts close windows they opened, so when refused the sheet says "Swipe back once more to
 close FINN" instead of failing silently. Browsers without CloseWatcher simply close on back.
+
+## 17. Second provider tried: Gemini
+
+To test whether a model with higher limits would read transcripts better, the client gained a
+Gemini option (both speak the OpenAI chat format) and a comparison script that re-extracts the
+calls behind the hand-checked ledgers and diffs the results; billed runs have a hard token cap.
+The run did not happen: the key's Google project had no prepaid credit (HTTP 402) and the
+remaining time went to the submission. FINN stays on Groq. Baseline for a future comparison: on
+Kaynes, Groq's `gpt-oss-20b` labelled 19 statements as company guidance; the rules kept 3.
