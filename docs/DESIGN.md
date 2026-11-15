@@ -89,8 +89,27 @@ pass. General rule fixes corrected the errors found except one left as is (IndiG
 release is tagged as an update, not results). The rules were tuned on this same sample, so
 accuracy on new filings is unmeasured.
 
+## 9a. Promise ledger
+
+- **Model does extraction only.** Groq free tier, `openai/gpt-oss-120b`, 8,000 tokens per minute.
+  A keyword filter keeps the 22-33% of each transcript that carries forward-looking statements
+  with numbers, so a call fits in one or two requests. Infosys, six calls: about 5 minutes and
+  roughly 118k tokens in total across three runs; replies are cached, so a rebuild is instant.
+- **Every quote is checked verbatim against the transcript in code.** Unmatched items are dropped
+  (4 of 44 for Infosys).
+- **Verdicts are arithmetic, not model output.** Operating margin is scored on
+  (operating profit - depreciation) / revenue, because management guides EBIT margin and
+  screener's margin is before depreciation.
+- **No verdict when the bases differ.** Revenue guided in constant currency is shown next to
+  rupee growth and marked "not comparable".
+- **The model's tags are not trusted alone.** It mislabels deal-level impacts as company guidance,
+  so the ledger also requires a plausible range and prefers quotes that say "guidance".
+- **Strict JSON mode rejected valid work** on 2 of 6 calls; the client falls back to plain mode and
+  parses the reply itself.
+- **Checked on one company only** (Infosys, which guides explicitly). Untested elsewhere.
+
 ## 10. Not built yet
 
-Promise ledger, guidance, bull vs bear, business snapshot (all need the model layer); results
+Bull vs bear, business snapshot; ledgers for companies other than Infosys; results
 parsed from the filing PDF; management-change background; RSS poller for live announcements
 (its item format could not be observed on a weekend); push notifications; deployment.

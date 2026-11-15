@@ -73,7 +73,7 @@ def actual(company, metric: str, period):
             return None
         s, op, dep = (sum(_at(q, n, p) or 0 for p in qs) for n in (rev, "Operating Profit", "Depreciation"))
         v = margin(s, op, dep, ebit)
-        return {"value": v, "unit": "%", "basis": f"FY{key % 100} first {len(qs)} quarter(s), {how}", "partial": True} if v is not None else None
+        return {"value": v, "unit": "%", "basis": f"FY{key % 100} first {len(qs)} quarter{'s' if len(qs) != 1 else ''}, {how}", "partial": True} if v is not None else None
 
     if metric == "revenue_growth":
         if kind == "quarter":
@@ -93,7 +93,7 @@ def actual(company, metric: str, period):
         if not qs or any(_at(q, rev, p) is None for p in qs + prior):
             return None
         a, b = sum(_at(q, rev, p) for p in qs), sum(_at(q, rev, p) for p in prior)
-        return {"value": round((a / b - 1) * 100, 1), "unit": "%", "basis": f"FY{key % 100} first {len(qs)} quarter(s) vs same quarters a year earlier, reported rupees", "partial": True}
+        return {"value": round((a / b - 1) * 100, 1), "unit": "%", "basis": f"FY{key % 100} first {len(qs)} quarter{'s' if len(qs) != 1 else ''} vs same quarters a year earlier, reported rupees", "partial": True}
     return None
 
 
@@ -103,6 +103,10 @@ CC = re.compile(r"constant currency|\bcc\b|organic|dollar|usd", re.I)
 
 def _is_cc(it) -> bool:
     return it.get("basis") == "constant_currency" or bool(CC.search(f"{it.get('quote', '')} {it.get('summary', '')}"))
+
+
+def _rank(it) -> tuple:
+    return (bool(re.search(r"guid", it.get("quote", ""), re.I)), it["low"] != it["high"])
 
 
 def _scoreable(it) -> bool:
@@ -139,8 +143,8 @@ def build(company, guidance_calls: list[dict]) -> dict:
             if not _scoreable(it):
                 continue
             k = (it["metric"], parse_period(str(it["target_period"])))
-            # one statement per call: a range beats a single point
-            if k not in per_call or (per_call[k]["low"] == per_call[k]["high"] and it["low"] != it["high"]):
+            # one statement per call: prefer a quote that says "guidance", then a range over a point
+            if k not in per_call or _rank(it) > _rank(per_call[k]):
                 per_call[k] = it
         for k, it in per_call.items():
             groups.setdefault(k, []).append(it)

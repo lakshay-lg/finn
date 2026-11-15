@@ -145,3 +145,13 @@ def test_ledger_ignores_component_impacts_and_inherits_constant_currency():
     row = L["rows"][0]
     assert [(h["low"], h["high"]) for h in row["guided"]] == [(1, 3), (2, 3)]
     assert row["verdict"] == "not comparable" and len(L["other_statements"]) == 2
+
+
+def test_ledger_prefers_the_statement_that_says_guidance():
+    from finn import ledger
+    mk = lambda lo, hi, quote: {"metric": "revenue_growth", "target_period": "FY27", "low": lo, "high": hi, "unit": "%", "call": "Oct 2026",
+                                "kind": "explicit_guidance", "quote": quote, "summary": "", "scope": "company"}
+    calls = [{"call": "Oct 2026", "items": [mk(-2, -1.8, "both of them put together were in the range of 1.8% to 2% impact"),
+                                            mk(1, 2, "our revenue growth guidance is 1% to 2% YoY in constant currency terms")]}]
+    row = ledger.build(_infy(), calls)["rows"][0]
+    assert (row["guided"][-1]["low"], row["guided"][-1]["high"]) == (1, 2)

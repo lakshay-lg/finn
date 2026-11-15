@@ -22,6 +22,20 @@ class ModelUnavailable(RuntimeError):
     pass
 
 
+def _parse(text: str) -> dict:
+    """Parse a JSON object from a reply that may wrap it in prose or a code fence."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        i, j = text.find("{"), text.rfind("}")
+        if i < 0 or j <= i:
+            raise ModelUnavailable("model reply contained no JSON object")
+        try:
+            return json.loads(text[i:j + 1])
+        except json.JSONDecodeError as e:
+            raise ModelUnavailable(f"model reply was not valid JSON: {e}")
+
+
 def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 1800) -> dict:
     """Return the parsed JSON object the model produced. Cached on disk."""
     key = hashlib.sha256(json.dumps([model, messages], sort_keys=True).encode()).hexdigest()[:24]
@@ -39,14 +53,14 @@ def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 1800)
             wait = float(r.headers.get("retry-after", 20))
             time.sleep(min(wait + 1, 65))
             continue
-        if r.status_code == 400 and "json_validate_failed" in r.text and attempt < 3:
-            # the model produced malformed JSON; a little sampling noise usually clears it
-            body["temperature"] = 0.2 + 0.1 * attempt
+        if r.status_code == 400 and "json_validate_failed" in r.text and "response_format" in body:
+            # Groq's strict JSON mode rejected the reply; ask again in plain mode and parse it here
+            del body["response_format"]
             continue
         if r.status_code >= 400:
             raise ModelUnavailable(f"{r.status_code}: {r.text[:300]}")
         data = r.json()
-        out = json.loads(data["choices"][0]["message"]["content"])
+        out = _parse(data["choices"][0]["message"]["content"])
         CACHE.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(out))
         with LEDGER.open("a") as f:
