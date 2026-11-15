@@ -5,12 +5,15 @@ from finn import config, docs, guidance, screener
 sym = sys.argv[1].upper(); n = int(sys.argv[2]) if len(sys.argv) > 2 else 5
 c = screener.fetch_company(sym)
 out, t0 = [], time.time()
+tried = 0
 for x in [v for v in c["documents"]["concalls"] if v["transcript"]]:
-    if len(out) >= n:
+    # the n most recent earnings calls; a failure is reported, not replaced by an older call
+    if tried >= n:
         break
     try:
         if not guidance.is_earnings_call(docs.fetch_text(x["transcript"])):
             print(f"{x['label']}: skipped, not an earnings call", flush=True); continue
+        tried += 1
         r = guidance.extract(x["transcript"], x["label"])
     except Exception as e:
         print(f"{x['label']}: FAILED {type(e).__name__}: {str(e)[:200]}", flush=True); continue

@@ -13,7 +13,7 @@ CHUNK_CHARS = 16000  # ~4,000 tokens, leaves room for the prompt and a 3,000-tok
 SYSTEM = """You extract management guidance from an Indian company's earnings-call transcript excerpt.
 Use ONLY the excerpt. Do not use anything you know about the company.
 Return JSON: {"items": [ ... ]}. Each item:
-- "metric": one of revenue_growth, operating_margin, ebitda_margin, pat, capex, headcount, order_book, deal_wins, volume, cash_flow, other
+- "metric": one of revenue (an absolute revenue amount), revenue_growth (a growth %), operating_margin (EBIT margin), ebitda_margin, pat, capex, headcount, order_book, deal_wins, volume, cash_flow, other
 - "target_period": the period the statement is about, as said (e.g. "FY27", "Q3 FY27", "next 2 years"); "" if not stated
 - "low" and "high": numbers if a numeric target or range is given, else null (a single number goes in both)
 - "unit": "%", "Rs crore", "USD million", etc; "" if none
@@ -24,7 +24,8 @@ Return JSON: {"items": [ ... ]}. Each item:
 - "scope": "company" if the number is the target for the WHOLE company's metric (e.g. full-year revenue growth guidance, the margin band); "component" if it is the effect of one deal, acquisition, segment or cost item (e.g. "the acquisition adds 1%", "50 bps impact")
 - "basis": "constant_currency" if the excerpt says the guidance is in constant currency, "reported" if it says reported/rupee terms, else "unspecified"
 Include only forward-looking statements by management about the company's own headline numbers.
-Skip reported results, analyst questions, and anything vague. At most 8 items; prefer explicit_guidance."""
+Skip reported results (what the period already delivered), analyst questions, and anything vague.
+If management recalls guidance it gave earlier ("we had guided X, now we expect Y"), extract the CURRENT expectation, and use the quote that states it. At most 8 items; prefer explicit_guidance."""
 
 
 def _norm(s: str) -> str:

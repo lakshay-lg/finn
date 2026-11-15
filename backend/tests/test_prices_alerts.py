@@ -134,11 +134,11 @@ def test_ledger_ignores_component_impacts_and_inherits_constant_currency():
     g = lambda call, lo, hi, quote, **kw: {"metric": "revenue_growth", "target_period": "FY26", "low": lo, "high": hi, "unit": "%",
                                            "kind": "explicit_guidance", "quote": quote, "summary": "", "scope": "company", "call": call, **kw}
     calls = [
-        {"call": "Jul 2025", "items": [g("Jul 2025", 1, 3, "growth of 1% to 3% in constant currency")]},
+        {"call": "Jul 2025", "items": [g("Jul 2025", 1, 3, "our guidance is growth of 1% to 3% in constant currency")]},
         {"call": "Oct 2025", "items": [g("Oct 2025", 2, 3, "we have guided for 2% to 3% for the year"),
-                                       g("Oct 2025", 1, 1, "this deal adds 1%", scope="component"),
+                                       g("Oct 2025", 1, 1, "this deal will add 1%", scope="component"),
                                        {"metric": "operating_margin", "target_period": "FY26", "low": -0.5, "high": -0.5, "unit": "%",
-                                        "kind": "explicit_guidance", "quote": "50 bps impact", "summary": "", "scope": "company", "call": "Oct 2025"}]},
+                                        "kind": "explicit_guidance", "quote": "the acquisition will have 50 bps impact", "summary": "", "scope": "company", "call": "Oct 2025"}]},
     ]
     L = ledger.build(_infy(), calls)
     assert len(L["rows"]) == 1
@@ -189,3 +189,37 @@ def test_unknown_page_gets_html_and_unknown_api_gets_json():
     r = c.get("/api/nope")
     assert r.status_code == 404 and r.json() == {"detail": "Not Found"}
     assert c.get("/api/research/NOTAREALTICKER").status_code == 404
+
+
+def test_ledger_absolute_revenue_and_forward_wording():
+    from finn import ledger
+    co = {"tables": {
+        "profit_loss": {"periods": ["Mar 2025", "Mar 2026"], "rows": {"Sales": [2722.0, 3626.0]}},
+        "quarters": {"periods": ["Jun 2026"], "rows": {"Sales": [946.0]}}}}
+    mk = lambda call, lo, hi, quote, unit="Rs crore", period="FY26": {
+        "metric": "revenue", "target_period": period, "low": lo, "high": hi, "unit": unit, "call": call,
+        "kind": "explicit_guidance", "quote": quote, "summary": "", "scope": "company"}
+    calls = [
+        {"call": "Nov 2025", "items": [mk("Nov 2025", 4500, 4500, "we are looking to close the year with revenues of INR4,500 crores")]},
+        {"call": "Feb 2026", "items": [mk("Feb 2026", 40000, 40000, "we now expect revenue of INR40,000 million for the year", unit="INR million")]},
+        {"call": "May 2026", "items": [mk("May 2026", 3626, 3626, "revenue for FY26 came in at INR3,626 crores"),
+                                       mk("May 2026", 5000, 5500, "we expect FY27 revenue of INR5,000 to INR5,500 crores", period="FY27")]},
+    ]
+    L = ledger.build(co, calls)
+    fy26 = next(r for r in L["rows"] if r["period"] == "FY26")
+    assert [(h["low"], h["high"]) for h in fy26["guided"]] == [(4500, 4500), (4000, 4000)]   # reported figure not a promise; million converted
+    assert fy26["verdict"] == "missed" and fy26["reported"]["value"] == 3626
+    fy27 = next(r for r in L["rows"] if r["period"] == "FY27")
+    assert fy27["verdict"] == "in progress" and fy27["reported"]["value"] == 946
+    assert ledger.verdict({"metric": "revenue", "low": 3600, "high": 3600, "unit": "Rs crore"}, {"value": 3626, "partial": False})[0] == "delivered"
+
+
+def test_ledger_treats_small_revenue_targets_as_segments():
+    from finn import ledger
+    co = {"tables": {"profit_loss": {"periods": ["Mar 2026"], "rows": {"Sales": [3626.0]}},
+                     "quarters": {"periods": ["Jun 2026"], "rows": {"Sales": [946.0]}}}}
+    it = {"metric": "revenue", "target_period": "FY27", "low": 500, "high": 500, "unit": "Rs crore", "call": "Aug 2026",
+          "kind": "explicit_guidance", "quote": "we have committed a full year revenue of totally INR500 crores between both", "summary": "", "scope": "company"}
+    L = ledger.build(co, [{"call": "Aug 2026", "items": [it]}])
+    assert L["rows"] == [] and len(L["other_statements"]) == 1
+    assert ledger.verdict({"metric": "ebitda_margin", "low": 15.6, "high": 15.6}, {"value": 15.9, "partial": False})[0] == "delivered"

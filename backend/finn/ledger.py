@@ -75,6 +75,19 @@ def actual(company, metric: str, period):
         v = margin(s, op, dep, ebit)
         return {"value": v, "unit": "%", "basis": f"FY{key % 100} first {len(qs)} quarter{'s' if len(qs) != 1 else ''}, {how}", "partial": True} if v is not None else None
 
+    if metric == "revenue":
+        if kind == "quarter":
+            v = _at(q, rev, key)
+            return {"value": v, "unit": "Rs crore", "basis": f"{key} quarter revenue", "partial": False} if v is not None else None
+        fy = f"Mar {key}"
+        if pl and fy in pl["periods"] and _at(pl, rev, fy) is not None:
+            return {"value": _at(pl, rev, fy), "unit": "Rs crore", "basis": f"FY{key % 100} full-year revenue", "partial": False}
+        qs = _fy_quarters(q, key)
+        if not qs or any(_at(q, rev, p) is None for p in qs):
+            return None
+        return {"value": round(sum(_at(q, rev, p) for p in qs)), "unit": "Rs crore",
+                "basis": f"FY{key % 100} revenue after {len(qs)} quarter{'s' if len(qs) != 1 else ''}", "partial": True, "quarters": len(qs)}
+
     if metric == "revenue_growth":
         if kind == "quarter":
             now, y, m = _at(q, rev, key), int(key.split()[1]), key.split()[0]
@@ -97,7 +110,25 @@ def actual(company, metric: str, period):
     return None
 
 
-PLAUSIBLE = {"operating_margin": (0, 80), "ebitda_margin": (0, 80), "revenue_growth": (-50, 200)}
+PLAUSIBLE = {"operating_margin": (0, 80), "ebitda_margin": (0, 80), "revenue_growth": (-50, 200), "revenue": (1, 10_000_000)}
+# A promise is worded as one. Without this, reported results ("EBITDA margin of 15.8% for FY26")
+# that the model mislabels as guidance would be scored against themselves.
+FORWARD = re.compile(r"guid|expect|target|aim|aspir|looking (to|at)|plan|outlook|commit|anticipat|project|"
+                     r"\bwill\b|\bshould\b|going to|confident|visibility|estimate", re.I)
+
+
+def to_crore(value, unit: str):
+    """Revenue figures in crore; million and billion converted; anything else is not comparable."""
+    u = (unit or "").lower()
+    if value is None:
+        return None
+    if "crore" in u or u in ("cr", "rs cr", "inr cr"):
+        return value
+    if "billion" in u or u.endswith("bn"):
+        return value * 100
+    if "million" in u or u.endswith("mn"):
+        return value / 10
+    return None
 CC = re.compile(r"constant currency|\bcc\b|organic|dollar|usd", re.I)
 
 
@@ -111,12 +142,18 @@ def _rank(it) -> tuple:
 
 def _scoreable(it) -> bool:
     lo, hi = it.get("low"), it.get("high")
-    if it.get("kind") != "explicit_guidance" or it.get("scope", "company") != "company" or it["metric"] not in PLAUSIBLE:
+    if it.get("kind") != "explicit_guidance" or it.get("scope", "company") != "company" or it.get("metric") not in PLAUSIBLE:
         return False
     if lo is None or hi is None or parse_period(str(it.get("target_period", ""))) is None:
         return False
+    if not FORWARD.search(it.get("quote", "")):
+        return False
+    if it["metric"] == "revenue":
+        lo, hi = to_crore(lo, it.get("unit", "")), to_crore(hi, it.get("unit", ""))
+        if lo is None:
+            return False
     a, b = PLAUSIBLE[it["metric"]]
-    return a <= lo <= hi <= b
+    return a <= min(lo, hi) and max(lo, hi) <= b
 
 
 def verdict(item, act, constant_currency=False):
@@ -126,12 +163,40 @@ def verdict(item, act, constant_currency=False):
         return "no reported figure", "No matching reported number, or no numeric target was given."
     if item["metric"] == "revenue_growth" and (constant_currency or _is_cc(item)):
         return "not comparable", "Guided in constant currency or dollars; the reported figure is rupee growth, which also includes currency moves."
+    if item["metric"] == "revenue":
+        lo, hi = to_crore(lo, item.get("unit", "")), to_crore(hi, item.get("unit", ""))
+        if act["partial"]:
+            return "in progress", f"A full-year target; {act['quarters']} of 4 quarters reported so far."
+    lo, hi = min(lo, hi), max(lo, hi)
     v = act["value"]
+    if lo == hi:
+        # a single-number promise counts as kept within 2% of it
+        # ("15.6% or so" met by 15.9%; screener's margin definition can also differ slightly from the company's)
+        tol = abs(lo) * 0.02 if item["metric"] == "revenue" else 0.5
+        lo, hi = lo - tol, hi + tol
     if lo <= v <= hi:
         return ("on track" if act["partial"] else "delivered"), "Reported figure is inside the guided range."
     if v > hi:
         return ("on track" if act["partial"] else "beat"), "Reported figure is above the guided range."
     return ("behind" if act["partial"] else "missed"), "Reported figure is below the guided range."
+
+
+def _last_full_year_revenue(company):
+    pl = company["tables"].get("profit_loss")
+    if not pl:
+        return None
+    rev = "Sales" if "Sales" in pl["rows"] else "Revenue"
+    vals = [v for p, v in zip(pl["periods"], pl["rows"].get(rev, [])) if p != "TTM" and v]
+    return vals[-1] if vals else None
+
+
+def _company_sized(company, it) -> bool:
+    """An absolute revenue 'target' far below the company's size is a segment or new-business figure."""
+    if it["metric"] != "revenue":
+        return True
+    base = _last_full_year_revenue(company)
+    hi = to_crore(max(it["low"], it["high"]), it.get("unit", ""))
+    return base is None or hi is None or 0.5 * base <= hi <= 4 * base
 
 
 def build(company, guidance_calls: list[dict]) -> dict:
@@ -140,7 +205,7 @@ def build(company, guidance_calls: list[dict]) -> dict:
     for call in sorted(guidance_calls, key=lambda c: _ym(c["call"])):
         per_call = {}
         for it in call["items"]:
-            if not _scoreable(it):
+            if not _scoreable(it) or not _company_sized(company, it):
                 continue
             k = (it["metric"], parse_period(str(it["target_period"])))
             # one statement per call: prefer a quote that says "guidance", then a range over a point
@@ -157,14 +222,19 @@ def build(company, guidance_calls: list[dict]) -> dict:
         for it in items:
             if not hist or (hist[-1]["low"], hist[-1]["high"]) != (it.get("low"), it.get("high")):
                 hist.append({"call": it["call"], "low": it.get("low"), "high": it.get("high"), "unit": it.get("unit", ""),
-                             "quote": it["quote"], "speaker": it.get("speaker", "")})
+                             "quote": it["quote"].strip(' "\u201c\u201d'), "speaker": it.get("speaker", "")})
+        if metric == "revenue":
+            for h in hist:
+                h["low"], h["high"], h["unit"] = to_crore(h["low"], h["unit"]), to_crore(h["high"], h["unit"]), " Rs crore"
         rows.append({"metric": metric, "period": f"FY{period[1] % 100}" if period[0] == "year" else period[1],
                      "guided": hist, "reported": act, "verdict": v, "why": why,
                      "revisions": len(hist) - 1, "_sort": period[1] if period[0] == "year" else _ym(period[1]) / 12})
     rows.sort(key=lambda r: (r["_sort"], r["metric"]))
     for r in rows:
         del r["_sort"]
-    other = [it for c in guidance_calls for it in c["items"] if not _scoreable(it)]
+    # listed for reading, not scored; reported results the model picked up are left out
+    other = [it for c in guidance_calls for it in c["items"]
+             if not (_scoreable(it) and _company_sized(company, it)) and FORWARD.search(it.get("quote", ""))]
     scored = [r for r in rows if r["verdict"] in ("delivered", "beat", "missed")]
     return {"rows": rows, "other_statements": other,
             "calls_read": [c["call"] for c in sorted(guidance_calls, key=lambda c: _ym(c["call"]))],

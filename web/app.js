@@ -95,8 +95,11 @@ function bars(points, { h = 120 } = {}) {
   }).join("")}<line x1="0" x2="${W}" y1="${zero}" y2="${zero}" stroke="var(--line)"/></svg>`;
 }
 
-const METRIC = { revenue_growth: "Revenue growth", operating_margin: "Operating margin", ebitda_margin: "EBITDA margin" };
-const range = g => g.low == null ? "no number" : g.low === g.high ? `${g.low}${g.unit}` : `${g.low} to ${g.high}${g.unit}`;
+const METRIC = { revenue: "Revenue", revenue_growth: "Revenue growth", operating_margin: "Operating margin", ebitda_margin: "EBITDA margin" };
+const isCr = u => /crore/i.test(u || "");
+const amt = (v, u) => isCr(u) ? `Rs ${inr(v)} cr` : `${v}${u}`;
+const range = g => g.low == null ? "no number" : g.low === g.high ? amt(g.low, g.unit)
+  : isCr(g.unit) ? `Rs ${inr(g.low)} to ${inr(g.high)} cr` : `${g.low} to ${g.high}${g.unit}`;
 function ledgerView(l) {
   if (!l || l.status !== "ready") return `<div class="panel"><p class="muted">${esc(l?.message || "Not available.")}</p></div>`;
   if (!l.rows.length) return `<div class="panel"><p class="muted">Management gave no numeric guidance on revenue growth or margins in the ${l.calls_read.length} calls read.</p></div>`;
@@ -106,7 +109,7 @@ function ledgerView(l) {
     ${l.rows.map(r => { const last = r.guided.at(-1); return `<div class="promise v-${r.verdict.replace(/ /g, "-")}">
       <div class="row-head"><span class="sym">${esc(METRIC[r.metric] || r.metric)}, ${esc(r.period)}</span><span class="when chip">${esc(r.verdict)}</span></div>
       <div class="pd"><div><div class="k">Promised</div><div class="v">${esc(range(last))}</div></div>
-        <div><div class="k">Reported</div><div class="v">${r.reported ? `${r.reported.value}${esc(r.reported.unit)}` : "n/a"}</div></div></div>
+        <div><div class="k">Reported</div><div class="v">${r.reported ? esc(amt(r.reported.value, r.reported.unit)) : "n/a"}</div></div></div>
       <p class="small muted">${esc(r.why)}${r.reported ? ` Reported basis: ${esc(r.reported.basis)}.` : ""}</p>
       ${r.revisions ? `<p class="small">Guidance changed ${r.revisions} time${r.revisions > 1 ? "s" : ""}: ${r.guided.map(g => `${esc(g.call)} ${esc(range(g))}`).join(", then ")}.</p>` : ""}
       <blockquote>${esc(last.quote)}<cite>${esc(last.speaker ? last.speaker + ", " : "")}${esc(last.call)} call</cite></blockquote></div>`; }).join("")}
