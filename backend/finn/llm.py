@@ -71,7 +71,7 @@ def _parse(text: str) -> dict:
             raise ModelUnavailable(f"model reply was not valid JSON: {e}")
 
 
-def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 3000) -> dict:
+def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 6000) -> dict:
     """Return the parsed JSON object the model produced. Cached on disk."""
     key = hashlib.sha256(json.dumps([model, messages], sort_keys=True).encode()).hexdigest()[:24]
     path = CACHE / f"{key}.json"

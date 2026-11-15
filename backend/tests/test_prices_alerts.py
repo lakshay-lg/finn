@@ -265,3 +265,17 @@ def test_token_budget_stops_calls(monkeypatch):
     monkeypatch.setattr(llm, "_used", 1000)
     with pytest.raises(llm.ModelUnavailable, match="budget"):
         llm.chat_json([{"role": "user", "content": "never sent: budget test"}])
+
+
+def test_ledger_one_sided_promise_scores_and_stays_valid_json():
+    import json
+    from finn import ledger
+    co = {"tables": {"profit_loss": {"periods": ["Mar 2025", "Mar 2026"],
+                                     "rows": {"Sales": [2722.0, 3626.0], "Operating Profit": [416.0, 578.0], "Depreciation": [45.0, 107.0]}},
+                     "quarters": {"periods": [], "rows": {}}}}
+    it = {"metric": "ebitda_margin", "target_period": "FY26", "low": 15.6, "high": None, "unit": "%", "call": "Aug 2025",
+          "kind": "explicit_guidance", "quote": "the EBITDA might exceed the guidance of 15.6%", "summary": "", "scope": "company"}
+    L = ledger.build(co, [{"call": "Aug 2025", "items": [it]}])
+    row = L["rows"][0]
+    assert row["verdict"] == "delivered" and row["guided"][0]["high"] is None
+    json.dumps(L, allow_nan=False)   # what the API does; infinity would fail here

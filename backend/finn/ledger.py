@@ -144,8 +144,10 @@ def _scoreable(it) -> bool:
     lo, hi = it.get("low"), it.get("high")
     if it.get("kind") != "explicit_guidance" or it.get("scope", "company") != "company" or it.get("metric") not in PLAUSIBLE:
         return False
-    if lo is None or hi is None or parse_period(str(it.get("target_period", ""))) is None:
+    if lo is None or parse_period(str(it.get("target_period", ""))) is None:
         return False
+    if hi is None:
+        hi = float("inf")   # "at least X": a one-sided promise; stored as None, never as infinity (not valid JSON)
     if not FORWARD.search(it.get("quote", "")):
         return False
     if it["metric"] == "revenue":
@@ -153,13 +155,15 @@ def _scoreable(it) -> bool:
         if lo is None:
             return False
     a, b = PLAUSIBLE[it["metric"]]
-    return a <= min(lo, hi) and max(lo, hi) <= b
+    return a <= min(lo, hi) and (hi == float("inf") or max(lo, hi) <= b)
 
 
 def verdict(item, act, constant_currency=False):
     """One of: delivered, beat, missed, on track, behind, not comparable, no reported figure."""
     lo, hi = item.get("low"), item.get("high")
-    if act is None or lo is None or hi is None:
+    if hi is None:
+        hi = float("inf")
+    if act is None or lo is None:
         return "no reported figure", "No matching reported number, or no numeric target was given."
     if item["metric"] == "revenue_growth" and (constant_currency or _is_cc(item)):
         return "not comparable", "Guided in constant currency or dollars; the reported figure is rupee growth, which also includes currency moves."
@@ -169,6 +173,10 @@ def verdict(item, act, constant_currency=False):
             return "in progress", f"A full-year target; {act['quarters']} of 4 quarters reported so far."
     lo, hi = min(lo, hi), max(lo, hi)
     v = act["value"]
+    if hi == float("inf"):
+        if v >= lo:
+            return ("on track" if act["partial"] else "delivered"), "Reported figure meets the minimum management promised."
+        return ("behind" if act["partial"] else "missed"), "Reported figure is below the minimum management promised."
     point = lo == hi
     if point:
         # a single-number promise counts as kept within 2% (revenue) or half a point (margins):
@@ -198,7 +206,8 @@ def _company_sized(company, it) -> bool:
     if it["metric"] != "revenue":
         return True
     base = _last_full_year_revenue(company)
-    hi = to_crore(max(it["low"], it["high"]), it.get("unit", ""))
+    top = it["low"] if it.get("high") in (None, float("inf")) else max(it["low"], it["high"])
+    hi = to_crore(top, it.get("unit", ""))
     return base is None or hi is None or 0.5 * base <= hi <= 4 * base
 
 

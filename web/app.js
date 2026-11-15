@@ -191,7 +191,7 @@ function spark(series) {
 const METRIC = { revenue: "Revenue", revenue_growth: "Revenue growth", operating_margin: "Operating margin", ebitda_margin: "EBITDA margin" };
 const isCr = u => /crore/i.test(u || "");
 const amt = (v, u) => isCr(u) ? `Rs ${inr(v)} cr` : `${v}${u}`;
-const range = g => g.low == null ? "no number" : g.low === g.high ? amt(g.low, g.unit)
+const range = g => g.low == null ? "no number" : g.high == null ? `at least ${amt(g.low, g.unit)}` : g.low === g.high ? amt(g.low, g.unit)
   : isCr(g.unit) ? `Rs ${inr(g.low)} to ${inr(g.high)} cr` : `${g.low} to ${g.high}${g.unit}`;
 
 function ledgerView(l) {

@@ -15,7 +15,9 @@ Use ONLY the excerpt. Do not use anything you know about the company.
 Return JSON: {"items": [ ... ]}. Each item:
 - "metric": one of revenue (an absolute revenue amount), revenue_growth (a growth %), operating_margin (EBIT margin), ebitda_margin, pat, capex, headcount, order_book, deal_wins, volume, cash_flow, other
 - "target_period": the period the statement is about, as said (e.g. "FY27", "Q3 FY27", "next 2 years"); "" if not stated
-- "low" and "high": numbers if a numeric target or range is given, else null (a single number goes in both)
+- "low" and "high": numbers if a numeric target or range is given, else null (a single number goes in both;
+  "at least X" or "exceed X" puts X in low and null in high). Copy each number exactly as the quote writes
+  it, in the quote's own unit: "INR4,100 crores" is 4100 with unit "Rs crore"; never convert to rupees.
 - "unit": "%", "Rs crore", "USD million", etc; "" if none
 - "summary": at most 20 words, plain, what management committed to or expects
 - "quote": a VERBATIM run of 8 to 30 consecutive words copied exactly from the excerpt that supports it

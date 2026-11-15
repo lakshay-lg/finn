@@ -218,3 +218,22 @@ calls behind the hand-checked ledgers and diffs the results; billed runs have a 
 The run did not happen: the key's Google project had no prepaid credit (HTTP 402) and the
 remaining time went to the submission. FINN stays on Groq. Baseline for a future comparison: on
 Kaynes, Groq's `gpt-oss-20b` labelled 19 statements as company guidance; the rules kept 3.
+
+## 18. Third provider tested: GLM 5.3 Flash (Hyde)
+
+Same twelve calls, compared row by row with the hand-checked ledgers. After three general fixes,
+all six rows match (Infosys 4, Kaynes 2):
+
+| | Groq (shipped) | GLM 5.3 Flash |
+|---|---|---|
+| Time per company | about 5 min (Infosys), 2.5 min (Kaynes) | 39 s, 27 s |
+| Quotes failing the word-for-word check | 4 (Infosys), 8 (Kaynes) | 0, 1 |
+| Tokens | about 118k (Infosys, three runs) | 44k, 29k |
+
+Fixes the first GLM run exposed, all general: the model converted "INR4,100 crores" to rupees while
+labelling it crore, so the prompt now says to copy numbers in the quote's own unit; "might exceed the
+guidance of 15.6%" is a one-sided promise, now scored as "at least" (stored as null, not infinity,
+which is not valid JSON); one Infosys answer was cut off, so the answer allowance went from 3,000 to
+6,000 tokens. GLM also found a guidance figure Groq missed (Kaynes "guided at INR4,400 crores" at the
+start of FY26). Its labels are still noisy: it tagged 37 Infosys statements as company guidance and
+the rules kept 15, so the rules stay. The shipped ledgers remain the hand-checked Groq ones.
