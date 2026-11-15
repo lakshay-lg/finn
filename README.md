@@ -54,6 +54,8 @@ transcripts ──► keyword filter ──► Groq model ──► quote check 
   tiers: needs attention, worth a look, routine.
 - **Model use:** one job only, extracting guidance from transcripts. It runs offline on Groq's
   free tier; results ship with the app, so the hosted site makes no model calls. Spend: $0.
+  The client speaks the OpenAI chat format to any provider; a second model (GLM 5.3 Flash)
+  reproduced every hand-checked ledger row about eight times faster (`docs/DESIGN.md`, section 18).
 - **Hosting:** one Docker image on Render, with a data snapshot so it has content on a cold start,
   and a refresh every three hours.
 
