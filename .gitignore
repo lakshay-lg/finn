@@ -30,3 +30,6 @@ data/finn.db
 
 # personal submission drafts (email text, exported chat history)
 submission/
+
+# teaching material, not part of the submission
+course/
