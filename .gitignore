@@ -24,3 +24,6 @@ frontend/dist/
 *.log
 data/finn.db
 .playwright-mcp/
+
+# exported chat transcripts hold private details
+*local-command-caveat*.txt

@@ -2,13 +2,16 @@
 import csv
 import io
 import json
+import os
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import alerts, announcements, config, db, ledger, metrics, screener
+from . import alerts, announcements, config, db, ledger, metrics, prices, screener
 
 app = FastAPI(title="FINN")
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -138,6 +141,45 @@ def research(symbol: str):
         out["ledger"] = {"status": "not_built",
                          "message": "Guidance has not been extracted for this company yet. On the free model tier it takes several minutes per company."}
     return out
+
+
+_refresh = {"last_run": None, "prices": None, "announcements": None, "error": None}
+
+
+def refresh_once():
+    """Top up prices and announcements. A failing source leaves the stored data in place."""
+    con = db.connect()
+    _refresh["last_run"] = datetime.now(IST).isoformat(timespec="seconds")
+    _refresh["error"] = None
+    try:
+        _refresh["prices"] = prices.ingest(con, days_back=10)
+    except Exception as e:
+        _refresh["prices"], _refresh["error"] = None, f"prices: {type(e).__name__}"
+    try:
+        _refresh["announcements"] = announcements.seed_from_screener(con, config.PORTFOLIO, force=True)
+    except Exception as e:
+        _refresh["announcements"], _refresh["error"] = None, f"announcements: {type(e).__name__}"
+
+
+def _refresh_loop():
+    while True:
+        refresh_once()
+        time.sleep(3 * 3600)
+
+
+@app.on_event("startup")
+def _start_refresh():
+    if os.environ.get("FINN_REFRESH", "1") == "1":
+        threading.Thread(target=_refresh_loop, daemon=True).start()
+
+
+@app.get("/api/status")
+def status():
+    """What the app holds and when it last managed to refresh."""
+    con = db.connect()
+    return {"refresh": _refresh, "price_session": con.execute("SELECT MAX(date) d FROM sessions").fetchone()["d"],
+            "sessions": con.execute("SELECT COUNT(*) n FROM sessions").fetchone()["n"],
+            "coverage": announcements.coverage(con)}
 
 
 _web = config.ROOT / "web"
