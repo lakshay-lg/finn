@@ -155,3 +155,24 @@ def test_ledger_prefers_the_statement_that_says_guidance():
                                             mk(1, 2, "our revenue growth guidance is 1% to 2% YoY in constant currency terms")]}]
     row = ledger.build(_infy(), calls)["rows"][0]
     assert (row["guided"][-1]["low"], row["guided"][-1]["high"]) == (1, 2)
+
+
+def test_new_company_fetches_are_capped():
+    from finn import main
+    main._fetch_times.clear()
+    assert all(main._allow_fetch(limit=3) for _ in range(3))
+    assert not main._allow_fetch(limit=3)
+    main._fetch_times.clear()
+
+
+def test_api_rejects_out_of_range_inputs_and_sets_headers(monkeypatch):
+    import os
+    os.environ["FINN_REFRESH"] = "0"
+    from fastapi.testclient import TestClient
+    from finn import main
+    c = TestClient(main.app)
+    assert c.get("/api/brief?hours=-5").status_code == 422
+    assert c.get("/api/brief?hours=999999999").status_code == 422
+    assert c.get("/api/alerts?on_date=x';--").status_code == 422
+    r = c.get("/api/status")
+    assert r.status_code == 200 and r.headers["x-content-type-options"] == "nosniff" and "default-src 'self'" in r.headers["content-security-policy"]

@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
 from . import alerts, announcements, config, db, ledger, metrics, prices, screener
@@ -63,7 +63,7 @@ def _headline_for(symbol: str, ts: str) -> dict:
 
 
 @app.get("/api/brief")
-def brief(hours: int = 24):
+def brief(hours: int = Query(24, ge=1, le=24 * 90)):
     """Windowed digest: what matters first, routine collapsed, coverage stated."""
     con = db.connect()
     announcements.coverage(con)  # ensures the table exists
@@ -90,14 +90,15 @@ def brief(hours: int = 24):
 
 
 @app.get("/api/alerts")
-def price_alerts(volume_multiple: float = 2.0, price_move_pct: float = 4.0, on_date: str | None = None):
+def price_alerts(volume_multiple: float = Query(2.0, ge=1, le=50), price_move_pct: float = Query(4.0, ge=0.1, le=100),
+                 on_date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
     con = db.connect()
     t = {"volume_multiple": volume_multiple, "price_move_pct": price_move_pct}
     return {"thresholds": t, "results": alerts.scan(con, config.PORTFOLIO, t, on_date)}
 
 
 @app.get("/api/prices/{symbol}")
-def price_series(symbol: str, sessions: int = 60):
+def price_series(symbol: str, sessions: int = Query(60, ge=1, le=400)):
     con = db.connect()
     rows = [dict(r) for r in con.execute(
         "SELECT date, close, volume FROM prices WHERE symbol=? ORDER BY date DESC LIMIT ?", (symbol.upper(), sessions))]
@@ -107,7 +108,7 @@ def price_series(symbol: str, sessions: int = 60):
 
 
 @app.get("/api/symbols")
-def symbols(q: str = ""):
+def symbols(q: str = Query("", max_length=40)):
     q = q.strip().upper()
     if not q:
         return [s for s in symbol_master() if s["symbol"] in config.PORTFOLIO]
@@ -121,6 +122,8 @@ def research(symbol: str):
     symbol = symbol.upper()
     if not any(s["symbol"] == symbol for s in symbol_master()):
         raise HTTPException(404, f"{symbol} is not an NSE symbol")
+    if not screener.is_fresh(symbol) and not _allow_fetch():
+        raise HTTPException(429, "Too many new companies requested. Try again in a minute.")
     try:
         c = screener.fetch_company(symbol)
     except LookupError as e:
@@ -141,6 +144,35 @@ def research(symbol: str):
         out["ledger"] = {"status": "not_built",
                          "message": "Guidance has not been extracted for this company yet. On the free model tier it takes several minutes per company."}
     return out
+
+
+# Each uncached company costs a request to screener.in. Cap them so a visitor cannot use this
+# server to hammer that site: at most 12 new companies in any 10 minutes, across all visitors.
+_fetch_times: list[float] = []
+_fetch_lock = threading.Lock()
+
+
+def _allow_fetch(limit: int = 12, window: float = 600.0) -> bool:
+    now = time.time()
+    with _fetch_lock:
+        _fetch_times[:] = [t for t in _fetch_times if now - t < window]
+        if len(_fetch_times) >= limit:
+            return False
+        _fetch_times.append(now)
+        return True
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+    return resp
 
 
 _refresh = {"last_run": None, "prices": None, "announcements": None, "error": None}

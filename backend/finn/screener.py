@@ -114,10 +114,20 @@ def _has_numbers(c: dict) -> bool:
     return bool(q and q["periods"] and any(v is not None for row in q["rows"].values() for v in row))
 
 
+def _cache_path(symbol: str):
+    return config.CACHE_DIR / "screener" / (re.sub(r"[^A-Z0-9]", "_", symbol.upper().strip()) + ".json")
+
+
+def is_fresh(symbol: str) -> bool:
+    """True when a saved copy exists and is recent enough that no request will be made."""
+    p = _cache_path(symbol)
+    return p.exists() and time.time() - p.stat().st_mtime < CACHE_TTL
+
+
 def fetch_company(symbol: str, force: bool = False) -> dict:
     """Consolidated page first; standalone if the consolidated one carries no numbers."""
     symbol = symbol.upper().strip()
-    cache = config.CACHE_DIR / "screener" / (re.sub(r"[^A-Z0-9]", "_", symbol) + ".json")
+    cache = _cache_path(symbol)
     if not force and cache.exists() and time.time() - cache.stat().st_mtime < CACHE_TTL:
         return json.loads(cache.read_text())
     out = None

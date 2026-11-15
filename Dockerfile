@@ -6,6 +6,8 @@ COPY backend ./backend
 COPY web ./web
 # data snapshot: free hosts wipe their disk on restart, so the app starts from this
 COPY seed ./data
+RUN useradd --create-home finn && chown -R finn /app/data
+USER finn
 ENV PYTHONPATH=/app/backend PORT=8000
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn finn.main:app --host 0.0.0.0 --port ${PORT}"]

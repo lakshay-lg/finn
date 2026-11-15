@@ -8,6 +8,8 @@ const CATS = { "M&A": "M&A", fund_raise: "Fund raise", management_change: "Manag
   unclassified: "Paperwork" };
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* Links come from scraped pages: only plain web links are allowed through. */
+const link = u => /^https?:\/\//i.test(String(u ?? "")) ? esc(u) : "#";
 const inr = v => v == null ? "n/a" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const pct = v => v == null ? "" : `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v}%</span>`;
 const when = ts => new Date(ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -46,7 +48,7 @@ function row(it, tier) {
     <p class="title">${esc(shortTitle(it.title))}</p>
     ${note ? `<p class="note">${esc(note)} <span class="by">Summary by screener.in</span></p>` : ""}
     ${numbers(it.numbers)}
-    <a class="src" href="${esc(it.url)}" target="_blank" rel="noopener">Open filing</a>
+    <a class="src" href="${link(it.url)}" target="_blank" rel="noopener">Open filing</a>
     ${it.related.length ? `<div class="more">${it.related.length} more filing${it.related.length > 1 ? "s" : ""} on this the same day</div>` : ""}
   </article>`;
 }
@@ -78,7 +80,7 @@ async function brief() {
     ${!n && b.last_high ? `<p class="muted">The last filing that mattered was ${esc(b.last_high.symbol)} on ${when(b.last_high.ts)}. Widen the window to see it.</p>` : ""}
     ${medium.length ? `<h2>Worth a look</h2>${medium.map(i => row(i, "medium")).join("")}` : ""}
     ${b.routine.length ? `<details class="routine"><summary>${b.routine.length} routine filing${b.routine.length > 1 ? "s" : ""}, set aside</summary>
-      <ul>${b.routine.map(r => `<li><strong>${esc(r.symbol)}</strong> ${esc(CATS[r.category] || r.category)}: <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(shortTitle(r.title)).slice(0, 80)}</a></li>`).join("")}</ul></details>` : ""}
+      <ul>${b.routine.map(r => `<li><strong>${esc(r.symbol)}</strong> ${esc(CATS[r.category] || r.category)}: <a href="${link(r.url)}" target="_blank" rel="noopener">${esc(shortTitle(r.title)).slice(0, 80)}</a></li>`).join("")}</ul></details>` : ""}
     <p class="coverage">Coverage: ${esc(b.coverage.statement)} Holding ${b.coverage.items} filings across ${b.coverage.companies} companies.</p>`;
   view.querySelectorAll(".seg button").forEach(btn => btn.onclick = () => { state.hours = +btn.dataset.h; brief(); });
 }
@@ -134,8 +136,8 @@ async function company(sym) {
       ${ccc.length ? `<p class="small muted">Cash conversion cycle, days: ${ccc.map(p => `${p.period.slice(-4)} ${p.value ?? "n/a"}`).join(", ")}</p>` : b.bank ? `<p class="small muted">Leverage ratios are not shown for banks because borrowings exclude deposits.</p>` : ""}</div>
     <h2>Promised vs delivered</h2>${ledgerView(r.ledger)}
     <h2>Primary documents</h2><div class="panel"><ul class="docs">
-      ${r.documents.transcripts.map(d => `<li><a href="${esc(d.transcript)}" target="_blank" rel="noopener">Earnings call transcript, ${esc(d.label)}</a></li>`).join("")}
-      ${r.documents.annual_reports.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">Annual report ${d.year}</a></li>`).join("")}</ul></div>`;
+      ${r.documents.transcripts.map(d => `<li><a href="${link(d.transcript)}" target="_blank" rel="noopener">Earnings call transcript, ${esc(d.label)}</a></li>`).join("")}
+      ${r.documents.annual_reports.map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">Annual report ${d.year}</a></li>`).join("")}</ul></div>`;
 }
 
 async function research() {

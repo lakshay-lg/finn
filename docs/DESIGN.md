@@ -113,3 +113,18 @@ accuracy on new filings is unmeasured.
 Bull vs bear, business snapshot; ledgers for companies other than Infosys; results
 parsed from the filing PDF; management-change background; RSS poller for live announcements
 (its item format could not be observed on a weekend); push notifications; deployment.
+
+## 11. Security review (against a 25-item app checklist)
+
+No logins, payments, uploads or per-user data, so 16 items do not apply. Of the rest:
+secrets, parameterised SQL, HTML escaping and error responses passed. Fixed after the review:
+
+- **Fetch cap:** each uncached company costs a request to screener.in, so new-company lookups are
+  capped at 12 per 10 minutes across all visitors (429 beyond that). Saved companies are unaffected.
+- **Input bounds** on every query parameter (422 outside range).
+- **Link scheme guard:** links from scraped pages render only if they are http(s).
+- **Security headers:** content security policy, no-sniff, no framing, no referrer.
+- **Container runs as a non-root user.**
+
+Not done: per-visitor rate limiting (the cap is global), and nothing limits model spend because
+the hosted app makes no model calls.
