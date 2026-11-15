@@ -28,7 +28,9 @@ COMMAND = re.compile(r"<command-name>(.*?)</command-name>", re.S)
 
 # Secrets and email addresses, replaced wherever they appear.
 REDACT = [
-    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "[email removed]"),
+    # personal mailboxes (free-mail and university domains); public addresses, like a firm's
+    # submission address or a commit's co-author line, stay as they are
+    (re.compile(r"[\w.+-]+@(?:gmail|yahoo|outlook|hotmail|icloud|proton(?:mail)?)\.[\w.]+|[\w.+-]+@[\w-]+\.ac\.in"), "[email removed]"),
     (re.compile(r"\bgsk_[A-Za-z0-9]{20,}"), "[key removed]"),
     (re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"), "[key removed]"),
     (re.compile(r"\bAIza[0-9A-Za-z_-]{20,}"), "[key removed]"),
