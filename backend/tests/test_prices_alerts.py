@@ -256,3 +256,12 @@ def test_installable_app_files_are_served():
     for path in ("/sw.js", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"):
         assert c.get(path).status_code == 200, path
     assert 'rel="manifest"' in c.get("/").text
+
+
+def test_token_budget_stops_calls(monkeypatch):
+    import pytest
+    from finn import llm
+    monkeypatch.setattr(llm, "BUDGET", 1000)
+    monkeypatch.setattr(llm, "_used", 1000)
+    with pytest.raises(llm.ModelUnavailable, match="budget"):
+        llm.chat_json([{"role": "user", "content": "never sent: budget test"}])

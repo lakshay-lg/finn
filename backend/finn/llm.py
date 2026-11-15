@@ -42,6 +42,11 @@ class ModelUnavailable(RuntimeError):
     pass
 
 
+# A hard stop for billed keys: once this process has used FINN_TOKEN_BUDGET tokens, no more calls.
+BUDGET = int(os.environ.get("FINN_TOKEN_BUDGET", "0")) or None
+_used = 0
+
+
 def _parse(text: str) -> dict:
     """Parse a JSON object from a reply that may wrap it in prose or a code fence."""
     try:
@@ -62,6 +67,9 @@ def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 3000)
     path = CACHE / f"{key}.json"
     if path.exists():
         return json.loads(path.read_text())
+    global _used
+    if BUDGET and _used >= BUDGET:
+        raise ModelUnavailable(f"token budget of {BUDGET:,} reached ({_used:,} used); stopping")
     api_key = _key()
     if not api_key:
         raise ModelUnavailable(f"{KEY_NAME} is not set")
@@ -88,6 +96,7 @@ def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 3000)
         data = r.json()
         if data["choices"][0].get("finish_reason") == "length":
             raise ModelUnavailable("model ran out of output tokens before finishing its answer")
+        _used += data.get("usage", {}).get("total_tokens", 0)
         out = _parse(data["choices"][0]["message"]["content"] or "")
         CACHE.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(out))
