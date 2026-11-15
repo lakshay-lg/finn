@@ -13,7 +13,8 @@ import httpx
 from . import config
 
 URL = "https://api.groq.com/openai/v1/chat/completions"
-STRONG = "openai/gpt-oss-120b"
+# 200,000 tokens per day per model on the free tier; FINN_MODEL switches model when one runs out
+STRONG = os.environ.get("FINN_MODEL", "openai/gpt-oss-120b")
 CACHE = config.CACHE_DIR / "llm"
 LEDGER = config.CACHE_DIR / "llm_ledger.jsonl"
 
@@ -36,7 +37,7 @@ def _parse(text: str) -> dict:
             raise ModelUnavailable(f"model reply was not valid JSON: {e}")
 
 
-def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 1800) -> dict:
+def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 3000) -> dict:
     """Return the parsed JSON object the model produced. Cached on disk."""
     key = hashlib.sha256(json.dumps([model, messages], sort_keys=True).encode()).hexdigest()[:24]
     path = CACHE / f"{key}.json"
@@ -45,8 +46,10 @@ def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 1800)
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise ModelUnavailable("GROQ_API_KEY is not set")
+    # reasoning_effort low: at the default the model can spend its whole output allowance thinking
+    # and return an empty answer (seen on Kaynes: 1,798 of 1,800 tokens went to reasoning)
     body = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0,
-            "response_format": {"type": "json_object"}}
+            "reasoning_effort": "low", "response_format": {"type": "json_object"}}
     for attempt in range(5):
         r = httpx.post(URL, headers={"Authorization": f"Bearer {api_key}"}, json=body, timeout=120)
         if r.status_code == 429:
@@ -60,7 +63,9 @@ def chat_json(messages: list[dict], model: str = STRONG, max_tokens: int = 1800)
         if r.status_code >= 400:
             raise ModelUnavailable(f"{r.status_code}: {r.text[:300]}")
         data = r.json()
-        out = _parse(data["choices"][0]["message"]["content"])
+        if data["choices"][0].get("finish_reason") == "length":
+            raise ModelUnavailable("model ran out of output tokens before finishing its answer")
+        out = _parse(data["choices"][0]["message"]["content"] or "")
         CACHE.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(out))
         with LEDGER.open("a") as f:

@@ -8,7 +8,7 @@ import re
 
 from . import docs, llm
 
-CHUNK_CHARS = 18000  # ~4,500 tokens, leaves room for the prompt and the answer under 8k/min
+CHUNK_CHARS = 16000  # ~4,000 tokens, leaves room for the prompt and a 3,000-token answer under 8k/min
 
 SYSTEM = """You extract management guidance from an Indian company's earnings-call transcript excerpt.
 Use ONLY the excerpt. Do not use anything you know about the company.
