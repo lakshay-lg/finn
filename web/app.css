@@ -90,3 +90,18 @@ tr.hit td:first-child { box-shadow: inset 4px 0 0 var(--mark); padding-left: 10p
 .error { padding: 12px 14px; border: 1px solid var(--down); border-radius: 12px; }
 @media (prefers-reduced-motion: no-preference) { details.routine ul { animation: open .16s ease-out; } }
 @keyframes open { from { opacity: 0; transform: translateY(-4px); } }
+
+/* promise ledger */
+.promise { border-top: 1px solid var(--line); padding: 12px 0 4px; }
+.pd { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 6px; }
+.pd .k { font-size: 13px; color: var(--ink-2); }
+.pd .v { font: 500 20px/1.2 var(--sans); font-variant-numeric: tabular-nums; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--ink); }
+.v-delivered .chip, .v-beat .chip, .v-on-track .chip { border-color: var(--up); color: var(--up); }
+.v-missed .chip, .v-behind .chip { border-color: var(--down); color: var(--down); }
+blockquote { margin: 8px 0; padding: 0 0 0 12px; border-left: 2px solid var(--mark); font: 400 15px/1.4 var(--serif); }
+blockquote cite { display: block; font: 400 12px/1.4 var(--sans); color: var(--ink-2); margin-top: 4px; font-style: normal; }
+details.others { margin-top: 10px; }
+details.others summary { cursor: pointer; font-size: 14px; font-weight: 500; padding: 8px 0; }
+details.others ul { margin: 0; padding-left: 18px; font-size: 14px; }
+details.others li { margin: 6px 0; }

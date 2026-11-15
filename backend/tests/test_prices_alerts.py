@@ -91,3 +91,57 @@ def test_reported_quarter():
     assert q("2026-09-30T09:00:00+05:30") == "Jun 2026"
     assert q("2027-01-20T09:00:00+05:30") == "Dec 2026"
     assert q("2026-02-10T09:00:00+05:30") == "Dec 2025"
+
+
+def _infy():
+    return {"tables": {
+        "profit_loss": {"periods": ["Mar 2025", "Mar 2026", "TTM"], "rows": {
+            "Sales": [162990.0, 178650.0, 189336.0], "Operating Profit": [39236.0, 42280.0, 44899.0], "Depreciation": [4812.0, 4902.0, 5184.0]}},
+        "quarters": {"periods": ["Jun 2025", "Sep 2025", "Jun 2026", "Sep 2026"], "rows": {
+            "Sales": [42279.0, 44490.0, 48211.0, 49244.0], "Operating Profit": [9943.0, 10535.0, 11409.0, 11689.0], "Depreciation": [1140.0, 1182.0, 1246.0, 1359.0]}}}}
+
+
+def test_ledger_periods():
+    from finn import ledger
+    assert ledger.parse_period("FY26") == ("year", 2026)
+    assert ledger.parse_period("Q3 FY26") == ("quarter", "Dec 2025")
+    assert ledger.parse_period("Q4 FY26") == ("quarter", "Mar 2026")
+    assert ledger.parse_period("next two years") is None
+
+
+def test_ledger_margin_is_ebit_and_scored():
+    from finn import ledger
+    act = ledger.actual(_infy(), "operating_margin", ("year", 2026))
+    assert act["value"] == 20.9 and not act["partial"]
+    it = {"metric": "operating_margin", "low": 20, "high": 22, "quote": "margin guidance 20% to 22%", "summary": ""}
+    assert ledger.verdict(it, act)[0] == "delivered"
+    assert ledger.verdict({**it, "low": 22, "high": 24}, act)[0] == "missed"
+
+
+def test_ledger_constant_currency_is_not_scored_and_partial_year():
+    from finn import ledger
+    act = ledger.actual(_infy(), "revenue_growth", ("year", 2026))
+    assert act["value"] == 9.6
+    it = {"metric": "revenue_growth", "low": 2, "high": 3, "quote": "growth between 2% and 3% in constant currency terms", "summary": ""}
+    assert ledger.verdict(it, act)[0] == "not comparable"
+    part = ledger.actual(_infy(), "operating_margin", ("year", 2027))
+    assert part["partial"] and part["value"] == round((11409 + 11689 - 1246 - 1359) / (48211 + 49244) * 100, 1)
+    assert ledger.verdict({"metric": "operating_margin", "low": 20, "high": 22, "quote": "", "summary": ""}, part)[0] == "on track"
+
+
+def test_ledger_ignores_component_impacts_and_inherits_constant_currency():
+    from finn import ledger
+    g = lambda call, lo, hi, quote, **kw: {"metric": "revenue_growth", "target_period": "FY26", "low": lo, "high": hi, "unit": "%",
+                                           "kind": "explicit_guidance", "quote": quote, "summary": "", "scope": "company", "call": call, **kw}
+    calls = [
+        {"call": "Jul 2025", "items": [g("Jul 2025", 1, 3, "growth of 1% to 3% in constant currency")]},
+        {"call": "Oct 2025", "items": [g("Oct 2025", 2, 3, "we have guided for 2% to 3% for the year"),
+                                       g("Oct 2025", 1, 1, "this deal adds 1%", scope="component"),
+                                       {"metric": "operating_margin", "target_period": "FY26", "low": -0.5, "high": -0.5, "unit": "%",
+                                        "kind": "explicit_guidance", "quote": "50 bps impact", "summary": "", "scope": "company", "call": "Oct 2025"}]},
+    ]
+    L = ledger.build(_infy(), calls)
+    assert len(L["rows"]) == 1
+    row = L["rows"][0]
+    assert [(h["low"], h["high"]) for h in row["guided"]] == [(1, 3), (2, 3)]
+    assert row["verdict"] == "not comparable" and len(L["other_statements"]) == 2

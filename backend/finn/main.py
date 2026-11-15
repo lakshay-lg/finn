@@ -1,13 +1,14 @@
 """FINN HTTP API. Run: PYTHONPATH=backend uv run uvicorn finn.main:app --port 8000"""
 import csv
 import io
+import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import alerts, announcements, config, db, metrics, screener
+from . import alerts, announcements, config, db, ledger, metrics, screener
 
 app = FastAPI(title="FINN")
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -129,7 +130,13 @@ def research(symbol: str):
         "annual_reports": d["annual_reports"][:3],
         "transcripts": [x for x in d["concalls"] if x["transcript"]][:5],
     }
-    out["narrative"] = None  # guidance / promise ledger: needs the model layer, not built yet
+    gpath = config.CACHE_DIR / "guidance" / f"{symbol.replace('&', '_')}.json"
+    if gpath.exists():
+        g = json.loads(gpath.read_text())
+        out["ledger"] = {"status": "ready", **ledger.build(c, g["calls"])}
+    else:
+        out["ledger"] = {"status": "not_built",
+                         "message": "Guidance has not been extracted for this company yet. On the free model tier it takes several minutes per company."}
     return out
 
 

@@ -93,6 +93,25 @@ function bars(points, { h = 120 } = {}) {
   }).join("")}<line x1="0" x2="${W}" y1="${zero}" y2="${zero}" stroke="var(--line)"/></svg>`;
 }
 
+const METRIC = { revenue_growth: "Revenue growth", operating_margin: "Operating margin", ebitda_margin: "EBITDA margin" };
+const range = g => g.low == null ? "no number" : g.low === g.high ? `${g.low}${g.unit}` : `${g.low} to ${g.high}${g.unit}`;
+function ledgerView(l) {
+  if (!l || l.status !== "ready") return `<div class="panel"><p class="muted">${esc(l?.message || "Not available.")}</p></div>`;
+  if (!l.rows.length) return `<div class="panel"><p class="muted">Management gave no numeric guidance on revenue growth or margins in the ${l.calls_read.length} calls read.</p></div>`;
+  const head = l.scored ? `Management kept ${l.kept} of ${l.scored} scoreable promises.` : `No promise can be scored yet.`;
+  return `<div class="panel"><p class="verdict">${head}</p>
+    <p class="small muted">Read ${l.calls_read.length} earnings calls (${esc(l.calls_read[0])} to ${esc(l.calls_read.at(-1))}). Each quote was checked word for word against the transcript${l.dropped_unverified ? `; ${l.dropped_unverified} that did not match were discarded` : ""}.</p>
+    ${l.rows.map(r => { const last = r.guided.at(-1); return `<div class="promise v-${r.verdict.replace(/ /g, "-")}">
+      <div class="row-head"><span class="sym">${esc(METRIC[r.metric] || r.metric)}, ${esc(r.period)}</span><span class="when chip">${esc(r.verdict)}</span></div>
+      <div class="pd"><div><div class="k">Promised</div><div class="v">${esc(range(last))}</div></div>
+        <div><div class="k">Reported</div><div class="v">${r.reported ? `${r.reported.value}${esc(r.reported.unit)}` : "n/a"}</div></div></div>
+      <p class="small muted">${esc(r.why)}${r.reported ? ` Reported basis: ${esc(r.reported.basis)}.` : ""}</p>
+      ${r.revisions ? `<p class="small">Guidance changed ${r.revisions} time${r.revisions > 1 ? "s" : ""}: ${r.guided.map(g => `${esc(g.call)} ${esc(range(g))}`).join(", then ")}.</p>` : ""}
+      <blockquote>${esc(last.quote)}<cite>${esc(last.speaker ? last.speaker + ", " : "")}${esc(last.call)} call</cite></blockquote></div>`; }).join("")}
+    ${l.other_statements.length ? `<details class="others"><summary>${l.other_statements.length} other forward-looking statements, not scored</summary>
+      <ul>${l.other_statements.map(o => `<li><strong>${esc(o.call)}</strong> ${esc(o.summary)}</li>`).join("")}</ul></details>` : ""}</div>`;
+}
+
 async function company(sym) {
   const box = document.getElementById("company");
   box.innerHTML = `<p class="muted">Reading ${esc(sym)}…</p>`;
@@ -113,7 +132,7 @@ async function company(sym) {
       <div class="num"><div class="k">Equity</div><div class="v">${inr(b.equity)}</div></div>
       <div class="num"><div class="k">Debt to equity</div><div class="v">${b.bank ? "n/a" : b.debt_to_equity ?? "n/a"}</div></div></div>
       ${ccc.length ? `<p class="small muted">Cash conversion cycle, days: ${ccc.map(p => `${p.period.slice(-4)} ${p.value ?? "n/a"}`).join(", ")}</p>` : b.bank ? `<p class="small muted">Leverage ratios are not shown for banks because borrowings exclude deposits.</p>` : ""}</div>
-    <h2>Promised vs delivered</h2><div class="panel"><p class="muted">Not built yet. This needs a model to read the transcripts below and compare management's guidance with the numbers above.</p></div>
+    <h2>Promised vs delivered</h2>${ledgerView(r.ledger)}
     <h2>Primary documents</h2><div class="panel"><ul class="docs">
       ${r.documents.transcripts.map(d => `<li><a href="${esc(d.transcript)}" target="_blank" rel="noopener">Earnings call transcript, ${esc(d.label)}</a></li>`).join("")}
       ${r.documents.annual_reports.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">Annual report ${d.year}</a></li>`).join("")}</ul></div>`;
