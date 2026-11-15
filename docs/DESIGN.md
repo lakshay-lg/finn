@@ -106,7 +106,17 @@ accuracy on new filings is unmeasured.
   so the ledger also requires a plausible range and prefers quotes that say "guidance".
 - **Strict JSON mode rejected valid work** on 2 of 6 calls; the client falls back to plain mode and
   parses the reply itself.
-- **Checked on one company only** (Infosys, which guides explicitly). Untested elsewhere.
+- **Second company: Kaynes, on the smaller model.** The large model's free allowance is
+  200,000 tokens a day and ran out, so Kaynes was extracted on `gpt-oss-20b` (six calls,
+  about 2.5 minutes). Its tagging is worse, so the ledger leans on rules, not the model's labels:
+  a scored statement must be worded as a promise ("expect", "target", "guided", "will"...), and
+  a company revenue target below half of last year's revenue is treated as a segment figure.
+  Every Kaynes row was checked by hand against its quote. Result: revenue guided Rs 4,500 cr,
+  cut to Rs 4,100 cr, delivered Rs 3,626 cr (missed); EBITDA margin "15.6% or so", delivered 15.9%.
+- **Model failure found and fixed:** at its default reasoning effort the model sometimes spent its
+  entire output allowance thinking and returned nothing; reasoning effort is now low and a cut-off
+  reply is detected.
+- **Still unproven** on companies that only give directional commentary.
 
 ## 10. Not built yet
 

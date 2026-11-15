@@ -169,13 +169,16 @@ def verdict(item, act, constant_currency=False):
             return "in progress", f"A full-year target; {act['quarters']} of 4 quarters reported so far."
     lo, hi = min(lo, hi), max(lo, hi)
     v = act["value"]
-    if lo == hi:
-        # a single-number promise counts as kept within 2% of it
-        # ("15.6% or so" met by 15.9%; screener's margin definition can also differ slightly from the company's)
+    point = lo == hi
+    if point:
+        # a single-number promise counts as kept within 2% (revenue) or half a point (margins):
+        # "15.6% or so" is met by 15.9%, and screener's margin definition can differ slightly from the company's
         tol = abs(lo) * 0.02 if item["metric"] == "revenue" else 0.5
         lo, hi = lo - tol, hi + tol
     if lo <= v <= hi:
-        return ("on track" if act["partial"] else "delivered"), "Reported figure is inside the guided range."
+        near = "within 2% of" if item["metric"] == "revenue" else "within half a point of"
+        return ("on track" if act["partial"] else "delivered"), (
+            f"Reported figure is {near} the single number guided." if point else "Reported figure is inside the guided range.")
     if v > hi:
         return ("on track" if act["partial"] else "beat"), "Reported figure is above the guided range."
     return ("behind" if act["partial"] else "missed"), "Reported figure is below the guided range."
