@@ -49,7 +49,7 @@ button:active, .tile:active, a.src:active, .docs a:active { transform: var(--pre
 /* portfolio pulse: every holding's last session at a glance */
 .pulse { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 6px; }
 .tile { min-width: 0; border: 0; border-radius: 9px; padding: 8px 6px 7px 7px; text-align: left; background: var(--surface); min-height: 50px; display: flex; flex-direction: column; justify-content: space-between; }
-.tile .s { font-size: 11px; font-weight: 600; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .s { font-size: 10.5px; font-weight: 600; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .m { font-size: 13px; }
 .tile.t-up { background: var(--up-soft); } .tile.t-down { background: var(--down-soft); }
 .tile.alert { box-shadow: inset 0 0 0 2px var(--mark); }
@@ -175,5 +175,7 @@ svg.vbar .bg { fill: var(--sunk); } svg.vbar .fg { fill: var(--ink-2); } svg.vba
 
 .notfound { padding-top: 15vh; }
 .notfound a { display: inline-block; padding: 12px 0; }
-/* narrow phones: ten-letter symbols (BHARTIARTL, PERSISTENT) still fit four to a row */
-@media (max-width: 379px) { .tile { padding-left: 6px; padding-right: 4px; } .tile .s { font-size: 10px; letter-spacing: -.02em; } .tile .m { font-size: 12px; } }
+/* Four tiles a row need about 345px for ten-letter symbols (BHARTIARTL, SUNPHARMA); measured on the
+   content width, so a desktop scrollbar counts. Narrower phones get three to a row at a larger size. */
+main { container-type: inline-size; }
+@container (max-width: 344px) { .pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tile .s { font-size: 11px; letter-spacing: -.01em; } }
