@@ -121,16 +121,24 @@ def fetch_company(symbol: str, force: bool = False) -> dict:
     if not force and cache.exists() and time.time() - cache.stat().st_mtime < CACHE_TTL:
         return json.loads(cache.read_text())
     out = None
-    with httpx.Client(headers={"User-Agent": config.USER_AGENT}, timeout=30, follow_redirects=True) as client:
-        for variant in ("consolidated/", ""):
-            r = client.get(BASE.format(sym=quote(symbol, safe=""), variant=variant))
-            if r.status_code == 404:
-                raise LookupError(f"{symbol}: not found on screener.in")
-            r.raise_for_status()
-            out = parse_company(r.text)
-            if _has_numbers(out):
-                break
-            time.sleep(1.0)
+    try:
+        with httpx.Client(headers={"User-Agent": config.USER_AGENT}, timeout=30, follow_redirects=True) as client:
+            for variant in ("consolidated/", ""):
+                r = client.get(BASE.format(sym=quote(symbol, safe=""), variant=variant))
+                if r.status_code == 404:
+                    raise LookupError(f"{symbol}: not found on screener.in")
+                r.raise_for_status()
+                out = parse_company(r.text)
+                if _has_numbers(out):
+                    break
+                time.sleep(1.0)
+    except httpx.HTTPError:
+        # the source refused or is unreachable: serve the last saved copy, marked stale
+        if cache.exists():
+            stale = json.loads(cache.read_text())
+            stale["stale"] = True
+            return stale
+        raise
     out["symbol"] = symbol
     out["fetched_at"] = int(time.time())
     cache.parent.mkdir(parents=True, exist_ok=True)

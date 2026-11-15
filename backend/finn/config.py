@@ -1,8 +1,9 @@
 """Static configuration: paths, the demo portfolio, default alert thresholds."""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = ROOT / "data"
+DATA_DIR = Path(os.environ.get("FINN_DATA_DIR", ROOT / "data"))
 CACHE_DIR = DATA_DIR / "cache"
 DB_PATH = DATA_DIR / "finn.db"
 
