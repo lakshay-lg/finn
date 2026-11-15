@@ -1,5 +1,30 @@
 const view = document.getElementById("view");
-const state = { tab: "brief", hours: 24, vol: 2, move: 4 };
+const state = { tab: "brief", hours: 24, vol: 2, move: 4, company: null, ticket: 0 };
+/* Thresholds are a per-device preference; storage can be unavailable (private mode), so never rely on it. */
+try { const t = JSON.parse(localStorage.getItem("finn.thresholds") || "null"); if (t) { state.vol = +t.vol || 2; state.move = +t.move || 4; } } catch {}
+const saveThresholds = () => { try { localStorage.setItem("finn.thresholds", JSON.stringify({ vol: state.vol, move: state.move })); } catch {} };
+
+/* Everything the three screens need is loaded once and kept in memory, so switching tabs, time
+   windows and thresholds never waits on the network. The 30-day brief is filtered in the browser. */
+const store = { brief: null, alerts: null, symbols: null, companies: new Map(), at: 0 };
+const STALE_MS = 10 * 60 * 1000;
+let loading = null;
+function load(force = false) {
+  if (!force && store.brief && Date.now() - store.at < STALE_MS) return Promise.resolve();
+  loading ??= Promise.all([get("/api/brief?hours=720"), get("/api/alerts")])
+    .then(([b, a]) => { store.brief = b; store.alerts = a.results; store.at = Date.now(); })
+    .finally(() => { loading = null; });
+  return loading;
+}
+/* Same rule as the server (alerts.py), applied to its unrounded figures with this device's thresholds. */
+function judged() {
+  return (store.alerts || []).map(r => {
+    const reasons = [];
+    if (r.volume_multiple_raw != null && r.volume_multiple_raw > state.vol) reasons.push("volume");
+    if (Math.abs(r.move_pct_raw) > state.move) reasons.push("price");
+    return { ...r, reasons, triggered: reasons.length > 0 };
+  }).sort((x, y) => (y.triggered - x.triggered) || (Math.abs(y.move_pct_raw) - Math.abs(x.move_pct_raw)));
+}
 const WINDOWS = [[24, "24 hours"], [72, "3 days"], [168, "7 days"], [720, "30 days"]];
 const CATS = { "M&A": "M&A", fund_raise: "Fund raise", management_change: "Management change", results: "Results",
   litigation: "Legal", credit_rating: "Credit rating", earnings_call: "Earnings call", press_release: "Update",
@@ -61,28 +86,48 @@ function moveRow(m) {
     <p class="note">Closed at ${inr(m.close)}, ${m.move_pct >= 0 ? "up" : "down"} ${Math.abs(m.move_pct)}%. ${m.delivery_pct ?? "n/a"}% of traded shares were delivered.</p></article>`;
 }
 
-async function brief() {
-  let b;
-  try { b = await get(`/api/brief?hours=${state.hours}`); } catch (e) { view.innerHTML = fail(e); return; }
-  const label = WINDOWS.find(w => w[0] === state.hours)[1];
-  const high = group(b.high), medium = group(b.medium);
-  const movesIn = b.moves_in_window ? b.moves : [], movesOut = b.moves_in_window ? [] : b.moves;
+function windowed(b, hours) {
+  const since = Date.parse(b.generated_at) - hours * 3600e3;
+  const keep = it => Date.parse(it.ts) >= since;
+  const sinceDay = new Date(since).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const high = b.high.filter(keep), medium = b.medium.filter(keep), routine = b.routine.filter(keep);
+  return { high, medium, routine, total: high.length + medium.length + routine.length,
+           movesInWindow: b.price_session >= sinceDay };
+}
+
+function renderBrief() {
+  const b = store.brief, w = windowed(b, state.hours);
+  const label = WINDOWS.find(x => x[0] === state.hours)[1];
+  const high = group(w.high), medium = group(w.medium);
+  const moves = judged().filter(m => m.triggered);
+  const movesIn = w.movesInWindow ? moves : [], movesOut = w.movesInWindow ? [] : moves;
   const n = high.length + movesIn.length;
-  const lede = b.counts.total === 0 && !movesIn.length
+  const lede = w.total === 0 && !movesIn.length
     ? `Nothing filed in the last ${label}.`
-    : `${b.counts.total} filing${b.counts.total === 1 ? "" : "s"} in the last ${label}. ${n} ${n === 1 ? "needs" : "need"} your attention.`;
+    : `${w.total} filing${w.total === 1 ? "" : "s"} in the last ${label}. ${n} ${n === 1 ? "needs" : "need"} your attention.`;
   view.innerHTML = `
     <p class="lede">${lede}</p>
-    <p class="stamp">As of ${when(b.generated_at)}. Prices from the ${esc(b.price_session)} session.</p>
+    <p class="stamp">As of ${when(b.generated_at)}. Prices from the ${esc(b.price_session)} session. Unusual means volume above ${state.vol}x or a move beyond ${state.move}%.</p>
     <div class="seg" role="group" aria-label="Time window">${WINDOWS.map(([h, t]) => `<button data-h="${h}" aria-pressed="${h === state.hours}">${t}</button>`).join("")}</div>
     ${n ? `<h2>Needs attention</h2>${movesIn.map(moveRow).join("")}${high.map(i => row(i, "high")).join("")}` : ""}
     ${movesOut.length ? `<h2>From the last trading session, before this window</h2>${movesOut.map(moveRow).join("")}` : ""}
     ${!n && b.last_high ? `<p class="muted">The last filing that mattered was ${esc(b.last_high.symbol)} on ${when(b.last_high.ts)}. Widen the window to see it.</p>` : ""}
     ${medium.length ? `<h2>Worth a look</h2>${medium.map(i => row(i, "medium")).join("")}` : ""}
-    ${b.routine.length ? `<details class="routine"><summary>${b.routine.length} routine filing${b.routine.length > 1 ? "s" : ""}, set aside</summary>
-      <ul>${b.routine.map(r => `<li><strong>${esc(r.symbol)}</strong> ${esc(CATS[r.category] || r.category)}: <a href="${link(r.url)}" target="_blank" rel="noopener">${esc(shortTitle(r.title)).slice(0, 80)}</a></li>`).join("")}</ul></details>` : ""}
+    ${w.routine.length ? `<details class="routine"><summary>${w.routine.length} routine filing${w.routine.length > 1 ? "s" : ""}, set aside</summary>
+      <ul>${w.routine.map(r => `<li><strong>${esc(r.symbol)}</strong> ${esc(CATS[r.category] || r.category)}: <a href="${link(r.url)}" target="_blank" rel="noopener">${esc(shortTitle(r.title)).slice(0, 80)}</a></li>`).join("")}</ul></details>` : ""}
     <p class="coverage">Coverage: ${esc(b.coverage.statement)} Holding ${b.coverage.items} filings across ${b.coverage.companies} companies.</p>`;
-  view.querySelectorAll(".seg button").forEach(btn => btn.onclick = () => { state.hours = +btn.dataset.h; brief(); });
+  view.querySelectorAll(".seg button").forEach(btn => btn.onclick = () => { state.hours = +btn.dataset.h; renderBrief(); });
+}
+
+async function brief() {
+  if (!store.brief) {
+    view.innerHTML = `<p class="lede">Reading the latest filings…</p>`;
+    try { await load(); } catch (e) { view.innerHTML = fail(e); return; }
+  }
+  if (state.tab !== "brief") return;
+  renderBrief();
+  if (Date.now() - store.at >= STALE_MS)
+    load(true).then(() => { if (state.tab === "brief") renderBrief(); }).catch(() => {});
 }
 
 function bars(points, { h = 120 } = {}) {
@@ -119,9 +164,16 @@ function ledgerView(l) {
 
 async function company(sym) {
   const box = document.getElementById("company");
-  box.innerHTML = `<p class="muted">Reading ${esc(sym)}…</p>`;
-  let r;
-  try { r = await get(`/api/research/${encodeURIComponent(sym)}`); } catch (e) { box.innerHTML = fail(e); return; }
+  const ticket = ++state.ticket;
+  state.company = sym;
+  let r = store.companies.get(sym);
+  if (!r) {
+    box.innerHTML = `<p class="muted">Reading ${esc(sym)}…</p>`;
+    try { r = await get(`/api/research/${encodeURIComponent(sym)}`); } catch (e) { if (ticket === state.ticket) box.innerHTML = fail(e); return; }
+    store.companies.set(sym, r);
+  }
+  // a later tap, or a tab change, has replaced this request
+  if (ticket !== state.ticket || state.tab !== "research") return;
   const h = r.headline, t = r.trajectory, c = r.cash_quality, b = r.balance_sheet;
   const cashLine = c.bank ? esc(c.note) : c.cfo_to_pat_3y_pct == null ? "Not enough cash-flow history to judge."
     : `Over the last three years, operating cash flow was ${c.cfo_to_pat_3y_pct}% of reported profit${c.cfo_to_pat_3y_pct < 70 ? ". Profits are not turning into cash." : c.cfo_to_pat_3y_pct > 100 ? ". Cash runs ahead of profit." : "."}`;
@@ -144,47 +196,68 @@ async function company(sym) {
       ${r.documents.annual_reports.map(d => `<li><a href="${link(d.url)}" target="_blank" rel="noopener">Annual report ${d.year}</a></li>`).join("")}</ul></div>`;
 }
 
+function search(text) {
+  const all = store.symbols.symbols, q = text.trim().toUpperCase();
+  if (!q) return store.symbols.portfolio.map(p => all.find(x => x[0] === p)).filter(Boolean);
+  const first = all.filter(x => x[0].startsWith(q));
+  return [...first, ...all.filter(x => !x[0].startsWith(q) && x[1].toUpperCase().includes(q))].slice(0, 12);
+}
+
 async function research() {
   view.innerHTML = `<p class="lede">Research any NSE company.</p>
     <div class="search"><input id="q" type="search" placeholder="Symbol or name, for example INFY" autocomplete="off" aria-label="Company"></div>
     <ul class="hits" id="hits"></ul><div id="company"></div>`;
   const q = document.getElementById("q"), hits = document.getElementById("hits");
-  let timer;
-  const show = async text => {
-    let list; try { list = await get(`/api/symbols?q=${encodeURIComponent(text)}`); } catch { list = []; }
-    if (!list.length && text.trim()) { hits.innerHTML = `<li class="muted nohit">No NSE company matches "${esc(text.trim())}". Try the exchange symbol, for example TCS.</li>`; return; }
-    hits.innerHTML = list.map(s => `<li><button data-s="${esc(s.symbol)}"><strong>${esc(s.symbol)}</strong> <span class="muted">${esc(s.name)}</span></button></li>`).join("");
+  if (!store.symbols) {
+    hits.innerHTML = `<li class="muted nohit">Loading the list of NSE companies…</li>`;
+    try { store.symbols = await get("/api/symbols/all"); } catch (e) { hits.innerHTML = `<li>${fail(e)}</li>`; return; }
+    if (state.tab !== "research") return;
+  }
+  const show = text => {
+    const list = search(text);
+    if (!list.length) { hits.innerHTML = `<li class="muted nohit">No NSE company matches "${esc(text.trim())}". Try the exchange symbol, for example TCS.</li>`; return; }
+    hits.innerHTML = list.map(([s, n]) => `<li><button data-s="${esc(s)}"><strong>${esc(s)}</strong> <span class="muted">${esc(n)}</span></button></li>`).join("");
     hits.querySelectorAll("button").forEach(b => b.onclick = () => { hits.innerHTML = ""; q.value = b.dataset.s; company(b.dataset.s); });
   };
-  q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => show(q.value), 180); };
-  show("");
+  q.oninput = () => show(q.value);
+  if (state.company) { q.value = state.company; hits.innerHTML = ""; company(state.company); } else show("");
 }
 
 async function thresholds() {
+  if (!store.alerts) {
+    view.innerHTML = `<p class="lede">Reading the last session…</p>`;
+    try { await load(); } catch (e) { view.innerHTML = fail(e); return; }
+    if (state.tab !== "thresholds") return;
+  }
   view.innerHTML = `<p class="lede">You decide what counts as unusual.</p>
     <div class="ctl"><label for="vol">Volume above <span id="volv"></span></label><input id="vol" type="range" min="1.2" max="5" step="0.1" value="${state.vol}"></div>
     <div class="ctl"><label for="mv">Price move beyond <span id="mvv"></span></label><input id="mv" type="range" min="1" max="10" step="0.5" value="${state.move}"></div>
-    <div id="res"></div>`;
+    <div id="res"></div>
+    <p class="small muted">Saved on this device. The brief uses the same settings.</p>`;
   const vol = document.getElementById("vol"), mv = document.getElementById("mv"), res = document.getElementById("res");
-  const run = async () => {
+  const run = () => {
     state.vol = +vol.value; state.move = +mv.value;
     document.getElementById("volv").textContent = `${state.vol}x the 20-session median`;
     document.getElementById("mvv").textContent = `${state.move}% in a day`;
-    let d; try { d = await get(`/api/alerts?volume_multiple=${state.vol}&price_move_pct=${state.move}`); } catch (e) { res.innerHTML = fail(e); return; }
-    const n = d.results.filter(r => r.triggered).length;
-    res.innerHTML = `<h2>${n} of ${d.results.length} stocks would alert on the last session</h2>
+    const rows = judged(), n = rows.filter(r => r.triggered).length;
+    res.innerHTML = `<h2>${n} of ${rows.length} stocks would alert on the ${esc(store.brief?.price_session || "last")} session</h2>
       <table><thead><tr><th>Stock</th><th>Move</th><th>Volume</th><th>Delivered</th></tr></thead><tbody>
-      ${d.results.map(r => `<tr class="${r.triggered ? "hit" : ""}"><td>${esc(r.symbol)}</td><td>${pct(r.move_pct)}</td><td>${r.volume_multiple}x</td><td>${r.delivery_pct ?? "n/a"}%</td></tr>`).join("")}</tbody></table>`;
+      ${rows.map(r => `<tr class="${r.triggered ? "hit" : ""}"><td>${esc(r.symbol)}</td><td>${pct(r.move_pct)}</td><td>${r.volume_multiple}x</td><td>${r.delivery_pct ?? "n/a"}%</td></tr>`).join("")}</tbody></table>`;
   };
-  vol.oninput = mv.oninput = run; run();
+  vol.oninput = mv.oninput = run;
+  vol.onchange = mv.onchange = saveThresholds;
+  run();
 }
 
 const TABS = { brief, research, thresholds };
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
   state.tab = b.dataset.tab;
+  state.ticket++;
   document.querySelectorAll(".tabs button").forEach(x => x.toggleAttribute("aria-current", false));
   b.setAttribute("aria-current", "page");
   document.title = `${b.textContent} | FINN`;
   window.scrollTo(0, 0); TABS[state.tab]();
 });
 brief();
+/* Fetch the company list once the brief has drawn, so the Research tab opens instantly. */
+load().then(() => setTimeout(() => { if (!store.symbols) get("/api/symbols/all").then(d => { store.symbols ??= d; }).catch(() => {}); }, 300)).catch(() => {});

@@ -155,3 +155,15 @@ placeholder text. Fixed: per-screen page titles, a meta description, a custom no
 (unknown API paths still answer in JSON), a message when a search matches nothing, and 44px
 tap targets on filing and document links. Found along the way: browsers kept stale page files
 after an update, so page files are now sent with `Cache-Control: no-cache`.
+
+## 13. Responsiveness: load once, compute on the phone
+
+Found in use on the hosted app: every slider move, tab switch and time-window change was a server
+request. On Render's free tier each one cost about 0.33 s of network plus up to 3.4 s of server
+work (0.01 s locally), and slider answers arrived out of order, so the alert count flickered.
+
+Now the phone loads the 30-day brief, the last session's figures and the symbol list once, and
+filters windows, searches and applies thresholds itself (2-5 ms, no requests). The server sends
+unrounded alert figures so the phone's decision matches the server's exactly (tested). Data is
+refetched after 10 minutes. Responses are gzip-compressed. Also fixed: the Brief ignored the
+thresholds set on the Thresholds screen; both now use the same settings, saved on the device.

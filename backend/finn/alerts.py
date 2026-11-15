@@ -31,6 +31,8 @@ def evaluate(history: list[dict], thresholds: dict | None = None) -> dict | None
         "volume_multiple": round(vol_x, 2) if vol_x is not None else None,
         "baseline_volume": int(base), "delivery_pct": last["delivery_pct"],
         "triggered": bool(reasons), "reasons": reasons,
+        # unrounded, so a client re-applying other thresholds gets exactly the same answer
+        "move_pct_raw": move, "volume_multiple_raw": vol_x,
     }
 
 

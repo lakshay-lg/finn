@@ -223,3 +223,22 @@ def test_ledger_treats_small_revenue_targets_as_segments():
     L = ledger.build(co, [{"call": "Aug 2026", "items": [it]}])
     assert L["rows"] == [] and len(L["other_statements"]) == 1
     assert ledger.verdict({"metric": "ebitda_margin", "low": 15.6, "high": 15.6}, {"value": 15.9, "partial": False})[0] == "delivered"
+
+
+def test_raw_fields_reproduce_the_server_decision():
+    """The phone re-applies thresholds to the raw fields; it must agree with the server exactly."""
+    from finn import alerts
+    for vols, close in (([1000] * 20 + [2004], 100.0), ([1000] * 20 + [2000], 104.0), ([1000] * 20 + [1999], 95.99)):
+        for t in ({"volume_multiple": 2.0, "price_move_pct": 4.0}, {"volume_multiple": 1.9, "price_move_pct": 3.5}):
+            r = alerts.evaluate(_hist(vols, last_close=close), t)
+            client = r["volume_multiple_raw"] > t["volume_multiple"] or abs(r["move_pct_raw"]) > t["price_move_pct"]
+            assert client == r["triggered"]
+
+
+def test_symbols_all_endpoint():
+    import os
+    os.environ["FINN_REFRESH"] = "0"
+    from fastapi.testclient import TestClient
+    from finn import main
+    d = TestClient(main.app).get("/api/symbols/all").json()
+    assert len(d["portfolio"]) == 20 and len(d["symbols"]) > 2000 and ["INFY", "Infosys Limited"] in d["symbols"]

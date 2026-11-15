@@ -9,11 +9,14 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import alerts, announcements, config, db, ledger, metrics, prices, screener
 
 app = FastAPI(title="FINN")
+# The phone loads the 30-day brief and the symbol list once; compressed, they are a fraction of the size.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 IST = timezone(timedelta(hours=5, minutes=30))
 SYMBOLS_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
 _symbols: list[dict] = []
@@ -115,6 +118,12 @@ def symbols(q: str = Query("", max_length=40)):
     hits = [s for s in symbol_master() if s["symbol"].startswith(q)]
     hits += [s for s in symbol_master() if q in s["name"].upper() and s not in hits]
     return hits[:12]
+
+
+@app.get("/api/symbols/all")
+def symbols_all():
+    """The whole NSE symbol list (about 100 KB) so the phone can search it without a round trip."""
+    return {"portfolio": config.PORTFOLIO, "symbols": [[s["symbol"], s["name"]] for s in symbol_master()]}
 
 
 @app.get("/api/research/{symbol}")
